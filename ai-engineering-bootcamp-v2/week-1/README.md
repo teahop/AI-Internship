@@ -47,34 +47,72 @@ uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
 
 `GET /` has no route — a bare root URL returns `{"detail":"Not Found"}`.
 
-## Curl (local)
+## Curl
 
-Normal synthetic fixture:
+No local files required — the JSON body is inline. Works against a local server or a deployed host (set `SERVICE_URL` to your service base URL from the host dashboard; do not commit that URL here).
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/ask \
+# Local: SERVICE_URL=http://127.0.0.1:8000
+curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
   -H "Content-Type: application/json" \
-  -d @fixtures/synthetic_history_case.json | python -m json.tool
+  -d '{
+    "confirm_synthetic": true,
+    "section": "history",
+    "child": {
+      "initials": "A.R.",
+      "dob": "2017-03-15",
+      "evaluation_date": "2026-07-16"
+    },
+    "sources": [
+      {
+        "id": "parent-dev-2026",
+        "type": "parent",
+        "date": "2026-06-01",
+        "label": "Parent developmental history form",
+        "content": "Pregnancy uncomplicated. Full-term vaginal birth, no NICU. Walked at 13 months. Concerns began in kindergarten with letter-sound learning."
+      },
+      {
+        "id": "teacher-2026",
+        "type": "teacher",
+        "date": "2026-06-15",
+        "label": "Current classroom teacher questionnaire",
+        "content": "Grade 4: reading fluency below peers; spelling weak; anxious when asked to read aloud."
+      }
+    ],
+    "model": "gpt-4o-mini"
+  }' | python3 -m json.tool
 ```
 
-Exercise the age guardrail (plants a bad age on attempt 0, then retries):
+Exercise the age guardrail (plants a bad age on attempt 0, then retries) — same body plus `"force_bad_age": true`:
 
 ```bash
-jq '. + {force_bad_age: true}' fixtures/synthetic_history_case.json \
-  | curl -s -X POST http://127.0.0.1:8000/ask \
-      -H "Content-Type: application/json" \
-      -d @- | python -m json.tool
+curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confirm_synthetic": true,
+    "section": "history",
+    "force_bad_age": true,
+    "child": {
+      "initials": "A.R.",
+      "dob": "2017-03-15",
+      "evaluation_date": "2026-07-16"
+    },
+    "sources": [
+      {
+        "id": "parent-dev-2026",
+        "type": "parent",
+        "date": "2026-06-01",
+        "label": "Parent developmental history form",
+        "content": "Full-term birth, no NICU. Concerns began in kindergarten with letter-sound learning."
+      }
+    ],
+    "model": "gpt-4o-mini"
+  }' | python3 -m json.tool
 ```
 
 Expect JSON with `answer`, `tokens_used`, `cost_usd`, and `age_years_expected`.
 
-Against a deployed host, swap the base URL (use your own service URL from the host dashboard — do not commit it here):
-
-```bash
-curl -s -X POST "$SERVICE_URL/ask" \
-  -H "Content-Type: application/json" \
-  -d @fixtures/synthetic_history_case.json | python -m json.tool
-```
+If you have the repo checked out, you can still use the fuller fixture file instead: `-d @fixtures/synthetic_history_case.json`.
 
 ## Deploy (Render)
 
