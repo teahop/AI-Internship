@@ -1,25 +1,35 @@
-"""Week 1 live demo — five stages in one file, built up live in class."""
+"""Molly history draft API — typed sources in, attributed ReportSection out, age guardrail, cost."""
 
+from __future__ import annotations
+
+import json
 import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from openai import OpenAI
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
-# Load .env from this folder so the key is found regardless of shell working directory.
-_ENV_PATH = Path(__file__).resolve().parent / ".env"
-load_dotenv(_ENV_PATH)
+from schemas import AskRequest, AskResponse, ReportSection, SourcedFact
+from validators import compute_age_years, validate_age_consistency
 
-# Reuse one client so TLS handshakes are not repeated on every request.
-app = FastAPI()
-client = OpenAI()  # Reads OPENAI_API_KEY from the environment; never hardcode keys.
+_DIR = Path(__file__).resolve().parent
+load_dotenv(_DIR / ".env")
 
-# Stage 4 default — strong general model; swap at request time for the live demo.
+SYSTEM_PROMPT = (_DIR / "system_prompt.md").read_text(encoding="utf-8")
+
+app = FastAPI(
+    title="Molly History Draft (synthetic OpenAI build)",
+    description=(
+        "Learning/build runtime on OpenAI — synthetic data only. "
+        "Production drafting for real cases runs on BastionGPT (BAA), not this repo."
+    ),
+)
+client = OpenAI()
+
 DEFAULT_MODEL = "gpt-4o"
 
-# Stage 5 — per-1K-token input/output USD (derived from OpenAI list prices).
 MODEL_PRICES_PER_1K: dict[str, tuple[float, float]] = {
     "gpt-4o": (0.0025, 0.01),
     "gpt-4o-mini": (0.00015, 0.0006),
@@ -27,55 +37,65 @@ MODEL_PRICES_PER_1K: dict[str, tuple[float, float]] = {
 }
 
 
-class Answer(BaseModel):
-    """Structured model output — this is what turns a chatbot into a component."""
-
-    answer: str
-    confidence: float = Field(ge=0.0, le=1.0)
-    sources_needed: bool
-
-
-class AskRequest(BaseModel):
-    """Typed request body so bad input is rejected before we spend tokens."""
-
-    question: str
-    force_bad: bool = False  # Stage 3 demo knob — first attempt breaks schema on purpose.
-    model: str | None = None  # Stage 4 — optional override to swap models live.
-
-
-class AskResponse(BaseModel):
-    """Typed response so callers always get the same shape back."""
-
-    answer: Answer
-    tokens_used: int
-    model: str
-    latency_ms: int
-    cost_usd: float
-
-
 def compute_cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """Turn real usage into dollars — same prompt, different model, different cost."""
-
     prices = MODEL_PRICES_PER_1K.get(model, MODEL_PRICES_PER_1K[DEFAULT_MODEL])
     input_per_1k, output_per_1k = prices
     return (prompt_tokens / 1000 * input_per_1k) + (completion_tokens / 1000 * output_per_1k)
 
 
-def call_model_structured(question: str, model: str) -> tuple[Answer, int, int, int]:
-    """
-    Stage 2 center: OpenAI structured output forces exactly the Answer schema.
-    Returns parsed answer plus token counts from billing metadata.
-    """
+def _user_payload(body: AskRequest) -> str:
+    """Serialize the typed case packet for the model (no real PHI in this build)."""
 
-    completion = client.chat.completions.parse(
-        model=model,
-        messages=[{"role": "user", "content": question}],
-        response_format=Answer,
+    expected_age = compute_age_years(body.child.dob, body.child.evaluation_date)
+    packet = {
+        "section": body.section,
+        "child": body.child.model_dump(),
+        "expected_age_years": expected_age,
+        "instruction": (
+            f"State age only as {expected_age} years if you mention age. "
+            "Ignore any other ages appearing inside sources."
+        ),
+        "sources": [s.model_dump() for s in body.sources],
+    }
+    return json.dumps(packet, indent=2)
+
+
+def _plant_bad_age_section(body: AskRequest) -> ReportSection:
+    """Deterministic bad draft so tests can prove the age validator fires."""
+
+    wrong_age = compute_age_years(body.child.dob, body.child.evaluation_date) + 2
+    source = body.sources[0]
+    return ReportSection(
+        section="history",
+        prose=(
+            f"{body.child.initials} is a {wrong_age}-year-old student referred for "
+            "evaluation of reading concerns. (PLANTED BAD AGE FOR VALIDATOR DEMO.)"
+        ),
+        facts=[
+            SourcedFact(
+                statement=f"{body.child.initials} is {wrong_age} years old.",
+                source_id=source.id,
+                source_date=source.date,
+                life_stage="current",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
     )
 
+
+def call_model_structured(body: AskRequest, model: str) -> tuple[ReportSection, int, int, int]:
+    completion = client.chat.completions.parse(
+        model=model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _user_payload(body)},
+        ],
+        response_format=ReportSection,
+    )
     parsed = completion.choices[0].message.parsed
     if parsed is None:
-        raise ValueError("Model returned no parseable structured output")
+        raise ValueError("Model returned no parseable ReportSection")
 
     usage = completion.usage
     total = usage.total_tokens if usage else 0
@@ -84,76 +104,67 @@ def call_model_structured(question: str, model: str) -> tuple[Answer, int, int, 
     return parsed, total, prompt_tokens, completion_tokens
 
 
-def call_model_unsafe(question: str, model: str) -> tuple[Answer, int, int, int]:
-    """
-    Stage 3 demo path: free-form JSON call, then validate locally.
-    The bad instruction makes confidence a string so Pydantic rejects it reliably.
-    """
-
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"{question}\n\n"
-                    "Reply with ONLY a JSON object using keys answer, confidence, sources_needed. "
-                    "Set confidence to the string 'very high' (not a number)."
-                ),
-            }
-        ],
-    )
-
-    raw = completion.choices[0].message.content or ""
-    # Guardrail: refuse malformed output instead of passing it through to clients.
-    answer = Answer.model_validate_json(raw)
-
-    usage = completion.usage
-    total = usage.total_tokens if usage else 0
-    prompt_tokens = usage.prompt_tokens if usage else 0
-    completion_tokens = usage.completion_tokens if usage else 0
-    return answer, total, prompt_tokens, completion_tokens
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "runtime": "openai-synthetic-only",
+        "production": "bastiongpt-baa-not-this-repo",
+    }
 
 
 @app.post("/ask")
 def ask(body: AskRequest) -> AskResponse:
-    """Answer one question with structured output, guardrails, and cost visibility."""
+    """
+    Draft Background & History with source-attributed facts.
+
+    Guard: confirm_synthetic must be true (enforced by schema Literal[True]).
+    Validator: age must match dob + evaluation_date; one retry on failure.
+    """
 
     model = body.model or DEFAULT_MODEL
     last_error: str | None = None
+    tokens_used = prompt_tokens = completion_tokens = 0
 
-    # Stage 3: one retry keeps the logic legible while still protecting callers.
-    for attempt in range(2):
+    # Allow a second model retry after the planted failure (age echoes from stale
+    # sources are occasional); three attempts keeps the demo reliable.
+    max_attempts = 3 if body.force_bad_age else 2
+
+    for attempt in range(max_attempts):
         try:
             start = time.perf_counter()
 
-            # First attempt with force_bad uses the unsafe path; retry uses structured output.
-            use_bad_path = body.force_bad and attempt == 0
-            if use_bad_path:
-                answer, tokens_used, prompt_tokens, completion_tokens = call_model_unsafe(
-                    body.question, model
-                )
+            if body.force_bad_age and attempt == 0:
+                section = _plant_bad_age_section(body)
+                # No OpenAI spend on the planted failure — still exercise the guardrail path.
+                tokens_used = prompt_tokens = completion_tokens = 0
             else:
-                answer, tokens_used, prompt_tokens, completion_tokens = call_model_structured(
-                    body.question, model
+                section, tokens_used, prompt_tokens, completion_tokens = call_model_structured(
+                    body, model
                 )
+
+            expected_age = validate_age_consistency(
+                section,
+                dob=body.child.dob,
+                evaluation_date=body.child.evaluation_date,
+            )
 
             latency_ms = int((time.perf_counter() - start) * 1000)
             cost_usd = compute_cost_usd(model, prompt_tokens, completion_tokens)
 
             return AskResponse(
-                answer=answer,
+                answer=section,
                 tokens_used=tokens_used,
                 model=model,
                 latency_ms=latency_ms,
                 cost_usd=round(cost_usd, 6),
+                age_years_expected=expected_age,
             )
         except (ValidationError, ValueError) as exc:
             last_error = str(exc)
             continue
 
-    # Clean failure — never leak a half-parsed response to the client.
     raise HTTPException(
         status_code=502,
-        detail=f"Model response failed schema validation after retry: {last_error}",
+        detail=f"Draft failed age/schema validation after retry: {last_error}",
     )

@@ -1,0 +1,47 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "A.R.",
+    "dob": "2017-03-15",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "assess-2026-wisc",
+      "type": "assessment",
+      "date": "2026-07-10",
+      "label": "Current psycho-educational assessment notes",
+      "content": "Referral for learning concerns in reading fluency and written expression. Examiner notes full-term birth per parent report collected at intake. No prior formal special education eligibility documented in the referral packet. Student presents as cooperative during testing."
+    },
+    {
+      "id": "school-cum-2024",
+      "type": "school",
+      "date": "2024-09-01",
+      "label": "School cumulative file summary (stale age planted)",
+      "content": "Cumulative file dated 2024-09-01 states student is 7 years old and in 2nd grade. Attendance generally regular. Teacher notes slow progress in phonics. No SST interventions listed in this summary sheet. (NOTE FOR BUILDERS: the '7 years old' line is intentionally stale relative to dob+evaluation_date.)"
+    },
+    {
+      "id": "school-iep-none-2025",
+      "type": "school",
+      "date": "2025-05-20",
+      "label": "School records — intervention log",
+      "content": "2024–2025 school year: Tier 2 reading intervention 3x/week starting October 2024. Progress monitoring shows limited growth in ORF. No IEP or 504 plan in place as of May 2025."
+    },
+    {
+      "id": "parent-dev-2026",
+      "type": "parent",
+      "date": "2026-06-01",
+      "label": "Parent developmental history form",
+      "content": "Pregnancy: uncomplicated. Birth: full-term, vaginal, no NICU. Early milestones: walked at 13 months, first words around 12 months, two-word phrases by 24 months. Parent reports no major medical hospitalizations. Sleep generally good. Parent reports concerns began in kindergarten with letter-sound learning. Parent states preschool was typical and enjoyable. CONFLICT PLANT: Parent reports student received private tutoring in 1st grade; school intervention log does not mention private tutoring."
+    },
+    {
+      "id": "teacher-2026",
+      "type": "teacher",
+      "date": "2026-06-15",
+      "label": "Current classroom teacher questionnaire",
+      "content": "Grade 4 teacher: reading fluency below grade peers; spelling weak; math computation average. Behavior: attentive, anxious when called on to read aloud. Homework completion inconsistent when writing is required."
+    }
+  ],
+  "model": "gpt-4o-mini"
+}
