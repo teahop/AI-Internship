@@ -42,10 +42,9 @@ Same app via the stage-5 alias:
 uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+- Home: http://127.0.0.1:8000/  
 - Health: http://127.0.0.1:8000/health  
 - Interactive docs: http://127.0.0.1:8000/docs  
-
-`GET /` has no route — a bare root URL returns `{"detail":"Not Found"}`.
 
 ## Curl
 

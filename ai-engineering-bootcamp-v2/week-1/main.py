@@ -8,6 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import ValidationError
 
@@ -102,6 +103,36 @@ def call_model_structured(body: AskRequest, model: str) -> tuple[ReportSection, 
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
     return parsed, total, prompt_tokens, completion_tokens
+
+
+@app.get("/", response_class=HTMLResponse)
+def home() -> str:
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TJ's test service for MH</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    ul { padding-left: 1.2rem; }
+    code { background: #f3f3f3; padding: 0.1em 0.35em; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Welcome to TJ's test service for MH.</h1>
+  <p>Here are the things you can look at and try:</p>
+  <ul>
+    <li><a href="/health">/health</a> — quick “is the service up?” check</li>
+    <li><a href="/docs">/docs</a> — interactive API docs (try <code>POST /ask</code> here)</li>
+    <li><a href="/redoc">/redoc</a> — alternate readable API docs</li>
+    <li><code>POST /ask</code> — draft a synthetic Background &amp; History (use <a href="/docs">/docs</a> or curl; not a browser link)</li>
+  </ul>
+  <p>Synthetic / de-identified data only. Do not paste real client records.</p>
+</body>
+</html>
+"""
 
 
 @app.get("/health")
