@@ -16,11 +16,76 @@ Every `/ask` request must set `"confirm_synthetic": true`. If that flag is missi
 ## Setup
 
 ```bash
-cp .env.example .env          # OPENAI_API_KEY=sk-...  (synthetic use only)
+cd ai-engineering-bootcamp-v2/week-1
+
+# Secrets live only in a local .env — never commit it.
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY (synthetic use only)
+
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+Use `.env.example` as the template. Keep real keys in `.env` only (gitignored).
+
+## Local run
+
+```bash
+source .venv/bin/activate
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Same app via the stage-5 alias:
+
+```bash
+uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
+```
+
+- Health: http://127.0.0.1:8000/health  
+- Interactive docs: http://127.0.0.1:8000/docs  
+
+`GET /` has no route — a bare root URL returns `{"detail":"Not Found"}`.
+
+## Curl (local)
+
+Normal synthetic fixture:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/ask \
+  -H "Content-Type: application/json" \
+  -d @fixtures/synthetic_history_case.json | python -m json.tool
+```
+
+Exercise the age guardrail (plants a bad age on attempt 0, then retries):
+
+```bash
+jq '. + {force_bad_age: true}' fixtures/synthetic_history_case.json \
+  | curl -s -X POST http://127.0.0.1:8000/ask \
+      -H "Content-Type: application/json" \
+      -d @- | python -m json.tool
+```
+
+Expect JSON with `answer`, `tokens_used`, `cost_usd`, and `age_years_expected`.
+
+Against a deployed host, swap the base URL (use your own service URL from the host dashboard — do not commit it here):
+
+```bash
+curl -s -X POST "$SERVICE_URL/ask" \
+  -H "Content-Type: application/json" \
+  -d @fixtures/synthetic_history_case.json | python -m json.tool
+```
+
+## Deploy (Render)
+
+1. Create a **Web Service** from this GitHub repo.
+2. Set **Root Directory** to `ai-engineering-bootcamp-v2/week-1` (required — `requirements.txt` and `main.py` are not at the repo root).
+3. **Build command:** `pip install -r requirements.txt`
+4. **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+5. In **Environment**, add `OPENAI_API_KEY` from your key provider (same value you put in local `.env`). Do not put secrets in the repo or in this README.
+6. Deploy, then check `$SERVICE_URL/health` and the curl examples above with `$SERVICE_URL`.
+
+Default model is `gpt-4o` when the request omits `model`. The sample fixture uses `gpt-4o-mini`.
 
 ## What `/ask` does (Molly’s #1 task)
 
@@ -31,25 +96,7 @@ Accepts a typed case packet (`section`, `child`, dated `sources`) and returns a 
 - **`conflicts`** — disagreements surfaced, not silently resolved  
 - **`coverage`** — which life stages appear (birth → present)
 
-A deterministic **age/DOB validator** recomputes age from `dob` + `evaluation_date` and rejects drafts that assert a different age (retry once).
-
-## Run
-
-```bash
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-# same app:
-uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Interactive docs: http://127.0.0.1:8000/docs
-
-## Test with the synthetic fixture
-
-```bash
-curl -s -X POST http://127.0.0.1:8000/ask \
-  -H "Content-Type: application/json" \
-  -d @fixtures/synthetic_history_case.json | python -m json.tool
-```
+A deterministic **age/DOB validator** recomputes age from `dob` + `evaluation_date` and rejects drafts that assert a different age (retry; if retries fail, returns a controlled error).
 
 ## Smoke tests
 
@@ -72,8 +119,8 @@ week-1/
 ├── serve_stage5.py                 # Alias → main
 ├── test_all_stages.py
 ├── requirements.txt
-├── .env.example
-└── .gitignore
+├── .env.example                    # Template only — copy to .env
+└── .gitignore                      # Ignores .env
 ```
 
 ## Week-1 concepts → this product
