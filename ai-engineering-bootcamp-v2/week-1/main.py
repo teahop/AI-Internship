@@ -8,7 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from openai import OpenAI
 from pydantic import ValidationError
 
@@ -113,14 +113,37 @@ def home() -> str:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TJ's test service for MH</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; }
     h1 { font-size: 1.25rem; font-weight: 600; }
+    .ascii {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.15;
+      white-space: pre;
+      color: #2a6f6f;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
     ul { padding-left: 1.2rem; }
     code { background: #f3f3f3; padding: 0.1em 0.35em; border-radius: 3px; }
   </style>
 </head>
 <body>
+  <pre class="ascii" aria-hidden="true">
+      .--.
+     /  o o\\     ~ scribble scribble ~
+    |   &gt;  |        (synthetic only)
+     \\  --/
+    .-`++++`-.
+   /  NOTES  \\
+   | ~~~~    |
+   | ~~~~ .. |
+   '---------'
+      |  |
+     ======
+  </pre>
   <h1>Welcome to TJ's test service for MH.</h1>
   <p>Here are the things you can look at and try:</p>
   <ul>
@@ -133,6 +156,12 @@ def home() -> str:
 </body>
 </html>
 """
+
+
+@app.get("/favicon.png", include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    return FileResponse(_DIR / "favicon.png", media_type="image/png")
 
 
 @app.get("/health")
