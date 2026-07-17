@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test week-1 stages + Molly history fixture (stage 5 / main)."""
+"""Smoke-test week-1 stages + Molly history/health fixtures (stage 5 / main)."""
 
 from __future__ import annotations
 

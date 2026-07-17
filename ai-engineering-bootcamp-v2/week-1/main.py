@@ -33,7 +33,9 @@ app = FastAPI(
     title="Molly History Draft (synthetic OpenAI build)",
     description=(
         "Learning/build runtime on OpenAI — synthetic data only. "
-        "Production drafting for real cases runs on BastionGPT (BAA), not this repo."
+        "Multi-source provenance spine, age/provenance/reporter validators, "
+        "conflict soft-retry. Production drafting for real cases runs on "
+        "BastionGPT (BAA), not this repo."
     ),
 )
 client = OpenAI()

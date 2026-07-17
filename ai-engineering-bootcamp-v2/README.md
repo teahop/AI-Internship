@@ -6,7 +6,7 @@ Hands-on course materials for building production-style LLM APIs with **FastAPI*
 
 | Week | Topic | Location |
 |------|-------|----------|
-| 1 | `/ask` endpoint — typed I/O, structured output, guardrails, model selection, cost | [`week-1/`](week-1/) |
+| 1 | Molly history `/ask` — multi-source provenance, structured output, age/provenance/conflict guardrails, cost | [`week-1/`](week-1/) |
 
 ## Tech stack
 
@@ -14,7 +14,7 @@ Hands-on course materials for building production-style LLM APIs with **FastAPI*
 - **OpenAI Python SDK** — chat completions and structured output (`response_format`)
 - **Pydantic** — request/response schemas and validation guardrails
 - **python-dotenv** — load `OPENAI_API_KEY` from `.env`
-- **Streamlit** — interactive demo runner (`demo_page.py`)
+- **Streamlit** — interactive demo runner for teaching stages (`demo_page.py`)
 - **httpx** — HTTP client for tests and the Streamlit UI
 
 ## Quick start
@@ -25,6 +25,9 @@ cp .env.example .env          # add your OPENAI_API_KEY
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-See [week-1/README.md](week-1/README.md) for running each demo stage.
+Open http://127.0.0.1:8000/ — you should see **provenance build · multi-source**.
+
+Full setup, fixtures, Render deploy, and curl examples: [week-1/README.md](week-1/README.md).
