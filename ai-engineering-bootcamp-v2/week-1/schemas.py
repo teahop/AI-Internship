@@ -42,9 +42,19 @@ class SourcedFact(BaseModel):
     """One claim in the draft, tied to where it came from and when."""
 
     statement: str
-    source_id: str
-    source_date: str | None = None
+    source_id: str = Field(description="Must be an id from the input sources list")
+    source_date: str = Field(
+        description="Must equal the matching input source's date (YYYY-MM-DD)"
+    )
     life_stage: LifeStage
+    reporter: str | None = Field(
+        default=None,
+        description=(
+            "Who/what the source text attributes this claim to "
+            "(e.g. school nurse, IEP document, father interview). "
+            "Must match the source content — never invent a reporter."
+        ),
+    )
 
 
 class Conflict(BaseModel):

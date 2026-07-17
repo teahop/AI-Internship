@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -12,12 +13,18 @@ from pathlib import Path
 
 import httpx
 
-from validators import compute_age_years, validate_age_consistency
-from schemas import ReportSection, SourcedFact
+from validators import (
+    compute_age_years,
+    needs_conflict_retry,
+    validate_age_consistency,
+    validate_provenance,
+)
+from schemas import ReportSection, Source, SourcedFact
 
 WORKDIR = Path(__file__).resolve().parent
 QUESTION = "What is Retrieval-Augmented Generation in one sentence?"
 FIXTURE_PATH = WORKDIR / "fixtures" / "synthetic_history_case.json"
+HEALTH_FIXTURE_PATH = WORKDIR / "fixtures" / "synthetic_health_conflict_case.json"
 
 
 def free_port() -> int:
@@ -151,8 +158,8 @@ def test_stage4(base: str) -> bool:
     return ok
 
 
-def _load_fixture() -> dict:
-    return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+def _load_fixture(path: Path = FIXTURE_PATH) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_age_validator_unit() -> bool:
@@ -187,6 +194,150 @@ def test_age_validator_unit() -> bool:
         ok &= check("fires", True, f"validator raised: {exc}")
     if not fired:
         ok &= check("fires", False, "validator did NOT raise on planted bad age")
+    return ok
+
+
+def test_provenance_validator_unit() -> bool:
+    """Assert provenance rejects unknown ids and wrong dates (no network)."""
+
+    print("\n=== Validator unit: provenance spine ===")
+    sources = [
+        Source(
+            id="nurse-health-2024",
+            type="school",
+            date="2024-09-12",
+            label="School Nurse Health Report",
+            content="Known peanut allergy.",
+        )
+    ]
+    ok = True
+
+    bad_id = ReportSection(
+        section="history",
+        prose="Allergy noted.",
+        facts=[
+            SourcedFact(
+                statement="Known peanut allergy.",
+                source_id="user-ask",
+                source_date="2024-09-12",
+                life_stage="current",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
+    )
+    try:
+        validate_provenance(bad_id, sources)
+        ok &= check("unknown id", False, "did not reject unknown source_id")
+    except ValueError as exc:
+        ok &= check("unknown id", "unknown source_id" in str(exc), f"raised: {exc}")
+
+    bad_date = ReportSection(
+        section="history",
+        prose="Allergy noted.",
+        facts=[
+            SourcedFact(
+                statement="Known peanut allergy.",
+                source_id="nurse-health-2024",
+                source_date="2026-07-16",
+                life_stage="current",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
+    )
+    try:
+        validate_provenance(bad_date, sources)
+        ok &= check("wrong date", False, "did not reject mismatched source_date")
+    except ValueError as exc:
+        ok &= check("wrong date", "source_date mismatch" in str(exc), f"raised: {exc}")
+
+    good = ReportSection(
+        section="history",
+        prose="Allergy noted.",
+        facts=[
+            SourcedFact(
+                statement="Known peanut allergy.",
+                source_id="nurse-health-2024",
+                source_date="2024-09-12",
+                life_stage="current",
+                reporter="school nurse",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
+    )
+    try:
+        validate_provenance(good, sources)
+        ok &= check("valid spine", True, "accepts matching source_id + source_date")
+    except ValueError as exc:
+        ok &= check("valid spine", False, f"unexpected raise: {exc}")
+
+    empty_conflicts = ReportSection(
+        section="history",
+        prose="ok",
+        facts=good.facts,
+        conflicts=[],
+        coverage=["current"],
+    )
+    ok &= check(
+        "conflict retry flag",
+        needs_conflict_retry(empty_conflicts, sources + sources[:1]) is True
+        or needs_conflict_retry(
+            empty_conflicts,
+            sources
+            + [
+                Source(
+                    id="iep-health-2025",
+                    type="school",
+                    date="2025-03-18",
+                    label="IEP",
+                    content="Undiagnosed",
+                )
+            ],
+        )
+        is True,
+        "multi-source empty conflicts → retry",
+    )
+    ok &= check(
+        "no retry single source",
+        needs_conflict_retry(empty_conflicts, sources) is False,
+        "single source empty conflicts → no retry",
+    )
+
+    from validators import validate_reporter_fidelity
+
+    bad_reporter = ReportSection(
+        section="history",
+        prose="Father indicated a known allergy to peanuts.",
+        facts=[
+            SourcedFact(
+                statement="Father indicated a known allergy to peanuts.",
+                source_id="father-interview-2026",
+                source_date="2026-06-20",
+                life_stage="current",
+                reporter="father",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
+    )
+    father_src = Source(
+        id="father-interview-2026",
+        type="parent",
+        date="2026-06-20",
+        label="Short father interview",
+        content=(
+            "Father stated health info came from the school file and IEP. "
+            "He did not name allergens and did not independently describe allergy details."
+        ),
+    )
+    try:
+        validate_reporter_fidelity(bad_reporter, [father_src])
+        ok &= check("reporter fidelity", False, "did not reject father allergy invent")
+    except ValueError as exc:
+        ok &= check("reporter fidelity", "Reporter fidelity failed" in str(exc), f"raised: {exc}")
+
     return ok
 
 
@@ -234,13 +385,90 @@ def test_stage5(base: str) -> bool:
         f"keys={list(data.keys())}",
     )
 
-    # Provenance: every fact points at an input source id.
-    source_ids = {s["id"] for s in fixture["sources"]}
+    # Provenance: every fact points at an input source id with matching date.
+    source_by_id = {s["id"]: s for s in fixture["sources"]}
     bad_refs = [
         f.get("source_id")
         for f in ans.get("facts", [])
-        if f.get("source_id") not in source_ids
+        if f.get("source_id") not in source_by_id
     ]
+    ok &= check("source_ids", len(bad_refs) == 0, f"unknown source_ids={bad_refs[:3]}")
+    bad_dates = [
+        f.get("source_id")
+        for f in ans.get("facts", [])
+        if f.get("source_id") in source_by_id
+        and f.get("source_date") != source_by_id[f["source_id"]]["date"]
+    ]
+    ok &= check("source_dates", len(bad_dates) == 0, f"date mismatches={bad_dates[:3]}")
+    # History fixture plants tutoring conflict across parent vs school log.
+    ok &= check(
+        "conflicts surfaced",
+        len(ans.get("conflicts", [])) >= 1,
+        f"conflicts={len(ans.get('conflicts', []))} (want ≥1 for planted tutoring conflict)",
+    )
+    return ok
+
+
+def test_health_conflicts(base: str) -> bool:
+    """Health fixture must surface name / plan-status / allergy-class conflicts."""
+
+    print("\n=== Stage 5 / main: health conflict fixture ===")
+    fixture = _load_fixture(HEALTH_FIXTURE_PATH)
+    status, data = post(base, fixture)
+    ans = data.get("answer", {})
+    ok = True
+    ok &= check("status", status == 200, f"HTTP {status}")
+    ok &= check("prose", isinstance(ans.get("prose"), str) and len(ans.get("prose", "")) > 40, "prose present")
+    ok &= check("facts", isinstance(ans.get("facts"), list) and len(ans.get("facts", [])) > 0, f"facts={len(ans.get('facts', []))}")
+
+    conflicts = ans.get("conflicts") or []
+    ok &= check(
+        "conflicts count",
+        len(conflicts) >= 3,
+        f"conflicts={len(conflicts)} (want ≥3: name, plan status, allergy class)",
+    )
+
+    blob = " ".join(
+        [
+            c.get("topic", "")
+            + " "
+            + " ".join(v.get("statement", "") for v in c.get("versions", []))
+            for c in conflicts
+        ]
+    ).lower()
+    ok &= check("name conflict", "justin" in blob and "jason" in blob, "Justin vs Jason in conflicts")
+    ok &= check(
+        "allergy conflict",
+        "undiagnosed" in blob and ("known" in blob or "allerg" in blob),
+        "Undiagnosed vs known allergy in conflicts",
+    )
+    ok &= check(
+        "plan status conflict",
+        ("draft" in blob or "emailed" in blob) and ("active" in blob or "on file" in blob or "on-file" in blob),
+        "draft vs active/on-file plan status in conflicts",
+    )
+
+    # Reporter fidelity: do not invent positive allergy claims under the father interview.
+    # (Mentions like "did not describe allergy details" are allowed.)
+    _positive_allergy = re.compile(
+        r"\b(known allergy|undiagnosed|allerg(?:y|ies)\s+to|allergy\s+classification|"
+        r"peanut\s+allerg\w*|allerg\w*\s+to\s+peanuts?)\b",
+        re.IGNORECASE,
+    )
+    father_allergy = [
+        f
+        for f in ans.get("facts", [])
+        if f.get("source_id") == "father-interview-2026"
+        and _positive_allergy.search(f.get("statement") or "")
+    ]
+    ok &= check(
+        "no father allergy invent",
+        len(father_allergy) == 0,
+        f"father-interview positive allergy facts={len(father_allergy)} (want 0)",
+    )
+
+    source_by_id = {s["id"]: s for s in fixture["sources"]}
+    bad_refs = [f.get("source_id") for f in ans.get("facts", []) if f.get("source_id") not in source_by_id]
     ok &= check("source_ids", len(bad_refs) == 0, f"unknown source_ids={bad_refs[:3]}")
     return ok
 
@@ -257,6 +485,22 @@ TESTS = [
 def main() -> int:
     results: list[tuple[str, bool]] = []
     results.append(("validators.age", test_age_validator_unit()))
+    results.append(("validators.provenance", test_provenance_validator_unit()))
+
+    # Health conflict check against main only (needs OpenAI + multi-source spine).
+    port = free_port()
+    base = f"http://127.0.0.1:{port}"
+    proc = start_server("main", port)
+    try:
+        if not wait_up(base):
+            print("\n=== main health conflicts: FAIL — server did not start ===")
+            results.append(("main.health_conflicts", False))
+        else:
+            results.append(("main.health_conflicts", test_health_conflicts(base)))
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+        time.sleep(0.5)
 
     for module, test_fn in TESTS:
         port = free_port()
