@@ -1,0 +1,33 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "J.M.",
+    "dob": "2015-04-22",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "nurse-health-2024",
+      "type": "school",
+      "date": "2024-09-12",
+      "label": "School Nurse Health Report",
+      "content": "Student name on header: Justin M. School nurse reviewed the school health file and IEP health pages. Nurse documents a known allergy to peanuts (IgE-mediated); epinephrine auto-injector kept in the health office. Health plan status per nurse: draft emailed to parent for signature; not yet returned. Short father interview noted: father confirmed that health information for this evaluation came from the school health file and IEP; father did not independently describe allergy details. CONFLICT PLANT (allergy class): nurse states known peanut allergy."
+    },
+    {
+      "id": "iep-health-2025",
+      "type": "school",
+      "date": "2025-03-18",
+      "label": "IEP health pages (pp. 33–35)",
+      "content": "IEP body student name: Jason M. Pages 33–35 health section lists peanut allergy classification as Undiagnosed. Same pages describe an active individual health plan on file covering peanut exposure precautions and emergency response. CONFLICT PLANT (name): body name Jason vs nurse header Justin. CONFLICT PLANT (allergy class): Undiagnosed vs nurse known allergy. CONFLICT PLANT (plan status): active plan on pp. 33–35 vs nurse draft-emailed / not returned."
+    },
+    {
+      "id": "father-interview-2026",
+      "type": "parent",
+      "date": "2026-06-20",
+      "label": "Short father interview (intake)",
+      "content": "Father stated that health background for this referral should be taken from the school health file and the IEP. He did not name allergens, did not call the allergy known or undiagnosed, and did not describe health-plan status. Developmental history otherwise typical per father."
+    }
+  ],
+  "model": "gpt-4o-mini"
+}

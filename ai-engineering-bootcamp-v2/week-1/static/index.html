@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TJ's test service for MH</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; background: #fff; }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    h2 { font-size: 1.05rem; font-weight: 600; margin-top: 2rem; }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 0.75rem 0 0.35rem; }
+    .badge {
+      display: inline-block;
+      margin: 0 0 0.75rem;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #1a4f4f;
+      background: #d8efef;
+      border-radius: 4px;
+    }
+    .ascii {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.15;
+      white-space: pre;
+      color: #2a6f6f;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
+    ul { padding-left: 1.2rem; }
+    code { background: #f3f3f3; padding: 0.1em 0.35em; border-radius: 3px; }
+    .try {
+      margin-top: 1.5rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid #d8e3e3;
+      border-radius: 8px;
+      background: #f7fbfb;
+    }
+    .try p.hint { color: #444; font-size: 0.95rem; margin-top: 0; }
+    label { display: block; font-weight: 600; margin: 0.75rem 0 0.35rem; }
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .fields label { margin-top: 0; }
+    input[type="text"], input[type="date"], select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid #b8c9c9;
+      border-radius: 6px;
+      background: #fff;
+      color: #1a1a1a;
+    }
+    textarea {
+      min-height: 6rem;
+      line-height: 1.45;
+      resize: vertical;
+    }
+    .source-card {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border: 1px solid #c5d6d6;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .source-card .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .source-card .card-head span { font-weight: 600; font-size: 0.9rem; }
+    .ghost {
+      background: transparent;
+      color: #2a6f6f;
+      border: 1px solid #2a6f6f;
+    }
+    .ghost.danger { color: #a33; border-color: #a33; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 0.75rem; }
+    .row label.chk { font-weight: 500; display: inline-flex; gap: 0.4rem; align-items: center; margin: 0; }
+    button {
+      background: #2a6f6f;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem 1rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    #status { font-size: 0.9rem; color: #555; }
+    #status.error { color: #a33; }
+    .answer {
+      margin-top: 0.75rem;
+      padding: 0.9rem 1rem;
+      background: #fff;
+      border: 1px solid #d8e3e3;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      min-height: 3rem;
+      color: #1a1a1a;
+    }
+    .panel {
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      background: #fff;
+      border: 1px solid #d8e3e3;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #1a1a1a;
+    }
+    .panel.empty { color: #777; }
+    .panel ul { margin: 0.35rem 0 0; }
+    .panel .cite { color: #555; font-size: 0.85rem; }
+    .conflict-item { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e8eeee; }
+    .conflict-item:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+    .meta { font-size: 0.9rem; color: #555; margin-top: 0.5rem; }
+    details { margin-top: 0.75rem; }
+    details summary { cursor: pointer; color: #2a6f6f; font-weight: 500; }
+    pre.out {
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      background: #111;
+      color: #e8f0e8;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <pre class="ascii" aria-hidden="true">
+      .--.
+     /  o o\     ~ scribble scribble ~
+    |   &gt;  |        (synthetic only)
+     \  --/
+    .-'++++'-.
+   /  NOTES  \
+   | ~~~~    |
+   | ~~~~ .. |
+   '---------'
+      |  |
+     ======
+  </pre>
+  <p class="badge" id="buildBadge">provenance build · multi-source</p>
+  <h1>Welcome to TJ's test service for MH.</h1>
+  <p>Here are the things you can look at and try:</p>
+  <ul>
+    <li><a href="/health">/health</a> — quick “is the service up?” check</li>
+    <li><a href="/docs">/docs</a> — interactive API docs (try <code>POST /ask</code> here)</li>
+    <li><a href="/redoc">/redoc</a> — alternate readable API docs</li>
+    <li><code>POST /ask</code> — draft a synthetic Background &amp; History (form below, <a href="/docs">/docs</a>, or curl)</li>
+  </ul>
+
+  <section class="try" aria-labelledby="try-title">
+    <h2 id="try-title">Draft from dated sources</h2>
+    <p class="hint">
+      Each source keeps its own <code>id</code>, <code>date</code>, and <code>label</code> — that is the provenance spine.
+      This page auto-loads the health-conflict fixture. Synthetic / fake data only — no real client records.
+    </p>
+
+    <div class="fields">
+      <div>
+        <label for="initials">Initials</label>
+        <input id="initials" type="text" value="A.R." autocomplete="off" />
+      </div>
+      <div>
+        <label for="dob">Date of birth</label>
+        <input id="dob" type="date" value="2017-03-15" />
+      </div>
+      <div>
+        <label for="evalDate">Evaluation date</label>
+        <input id="evalDate" type="date" value="2026-07-16" />
+      </div>
+    </div>
+
+    <div class="row">
+      <button type="button" class="ghost" id="loadHistoryBtn">Load history fixture</button>
+      <button type="button" class="ghost" id="loadHealthBtn">Load health-conflict fixture</button>
+      <button type="button" class="ghost" id="addSourceBtn">Add source</button>
+    </div>
+
+    <div id="sources"></div>
+
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="forceBad" /> Demo age guardrail (force_bad_age)</label>
+      <button type="button" id="runBtn">Run draft</button>
+      <span id="status">Loading fixture…</span>
+    </div>
+
+    <label for="answer">Draft</label>
+    <div class="answer" id="answer">(draft will show up here)</div>
+
+    <h3>Attributed facts</h3>
+    <div class="panel empty" id="factsPanel">(facts will show here)</div>
+
+    <h3>Conflicts surfaced</h3>
+    <div class="panel empty" id="conflictsPanel">(conflicts will show here)</div>
+
+    <p class="meta" id="meta"></p>
+    <details>
+      <summary>Show full JSON response</summary>
+      <pre class="out" id="result"></pre>
+    </details>
+  </section>
+
+  <p>Synthetic / de-identified data only. Do not paste real client records.</p>
+
+  <script>
+    const SOURCE_TYPES = [
+      "assessment", "school", "parent", "teacher", "observation", "prior_eval", "other"
+    ];
+    const initialsEl = document.getElementById("initials");
+    const dobEl = document.getElementById("dob");
+    const evalEl = document.getElementById("evalDate");
+    const forceBadEl = document.getElementById("forceBad");
+    const sourcesEl = document.getElementById("sources");
+    const runBtn = document.getElementById("runBtn");
+    const statusEl = document.getElementById("status");
+    const answerEl = document.getElementById("answer");
+    const factsPanel = document.getElementById("factsPanel");
+    const conflictsPanel = document.getElementById("conflictsPanel");
+    const metaEl = document.getElementById("meta");
+    const resultEl = document.getElementById("result");
+    let sourceSeq = 0;
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      if (attrs) {
+        Object.entries(attrs).forEach(([k, v]) => {
+          if (k === "className" || k === "class") node.className = v;
+          else if (k === "text") node.textContent = v;
+          else if (k === "value") node.value = v;
+          else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
+          else node.setAttribute(k, v);
+        });
+      }
+      (children || []).forEach((child) => {
+        if (child == null) return;
+        node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+      });
+      return node;
+    }
+
+    function field(labelText, control) {
+      return el("div", null, [el("label", { text: labelText }), control]);
+    }
+
+    function sourceCard(data) {
+      data = data || {};
+      sourceSeq += 1;
+      const idInput = el("input", { class: "s-id", type: "text", value: data.id || "" });
+      idInput.value = data.id || "";
+      idInput.placeholder = "nurse-health-2024";
+
+      const typeSel = el("select", { class: "s-type" });
+      SOURCE_TYPES.forEach((t) => {
+        const opt = el("option", { value: t, text: t });
+        typeSel.appendChild(opt);
+      });
+      typeSel.value = data.type || "other";
+
+      const dateInput = el("input", { class: "s-date", type: "date" });
+      dateInput.value = data.date || "";
+
+      const labelInput = el("input", { class: "s-label", type: "text" });
+      labelInput.value = data.label || "";
+      labelInput.placeholder = "School Nurse Health Report";
+
+      const contentArea = el("textarea", { class: "s-content" });
+      contentArea.value = data.content || "";
+      contentArea.placeholder = "Paste this source's text only…";
+
+      const removeBtn = el("button", {
+        type: "button",
+        className: "ghost danger",
+        text: "Remove",
+      });
+      removeBtn.addEventListener("click", () => {
+        if (sourcesEl.children.length <= 1) {
+          statusEl.className = "error";
+          statusEl.textContent = "Keep at least one source.";
+          return;
+        }
+        card.remove();
+      });
+
+      const card = el("div", { className: "source-card" }, [
+        el("div", { className: "card-head" }, [
+          el("span", { text: "Source" }),
+          removeBtn,
+        ]),
+        el("div", { className: "fields" }, [
+          field("Id", idInput),
+          field("Type", typeSel),
+          field("Date", dateInput),
+          field("Label", labelInput),
+        ]),
+        el("label", { text: "Content" }),
+        contentArea,
+      ]);
+      return card;
+    }
+
+    function clearSources() {
+      sourcesEl.innerHTML = "";
+    }
+
+    function setChild(child) {
+      if (!child) return;
+      initialsEl.value = child.initials || "";
+      dobEl.value = child.dob || "";
+      evalEl.value = child.evaluation_date || "";
+    }
+
+    function applyFixture(data) {
+      setChild(data.child);
+      clearSources();
+      (data.sources || []).forEach((s) => sourcesEl.appendChild(sourceCard(s)));
+      statusEl.className = "";
+      statusEl.textContent = "Fixture loaded — " + (data.sources || []).length + " source(s).";
+    }
+
+    async function loadFixture(name) {
+      statusEl.className = "";
+      statusEl.textContent = "Loading fixture…";
+      const res = await fetch("/fixtures/" + name);
+      if (!res.ok) throw new Error("Could not load fixture " + name);
+      applyFixture(await res.json());
+    }
+
+    document.getElementById("addSourceBtn").addEventListener("click", () => {
+      sourcesEl.appendChild(sourceCard({
+        id: "source-" + (sourceSeq + 1),
+        type: "other",
+        date: evalEl.value || "",
+        label: "",
+        content: "",
+      }));
+    });
+    document.getElementById("loadHistoryBtn").addEventListener("click", () => {
+      loadFixture("synthetic_history_case.json").catch((err) => {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+      });
+    });
+    document.getElementById("loadHealthBtn").addEventListener("click", () => {
+      loadFixture("synthetic_health_conflict_case.json").catch((err) => {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+      });
+    });
+
+    // Auto-load health-conflict fixture so the page is never an empty form.
+    loadFixture("synthetic_health_conflict_case.json").catch((err) => {
+      statusEl.className = "error";
+      statusEl.textContent = String(err.message || err);
+      sourcesEl.appendChild(sourceCard({
+        id: "source-1",
+        type: "other",
+        date: evalEl.value,
+        label: "",
+        content: "",
+      }));
+    });
+
+    function collectSources() {
+      const cards = [...sourcesEl.querySelectorAll(".source-card")];
+      const sources = cards.map((card) => {
+        const id = card.querySelector(".s-id").value.trim();
+        const type = card.querySelector(".s-type").value;
+        const date = card.querySelector(".s-date").value;
+        const label = card.querySelector(".s-label").value.trim();
+        const content = card.querySelector(".s-content").value.trim();
+        return { id, type, date, label, content };
+      });
+      if (!sources.length) throw new Error("Add at least one source.");
+      for (const s of sources) {
+        if (!s.id || !s.date || !s.label || !s.content) {
+          throw new Error("Each source needs id, date, label, and content.");
+        }
+      }
+      return sources;
+    }
+
+    function buildBody() {
+      const initials = (initialsEl.value || "A.R.").trim();
+      const dob = dobEl.value;
+      const evaluation_date = evalEl.value;
+      if (!dob || !evaluation_date) throw new Error("Pick a DOB and evaluation date.");
+      const body = {
+        confirm_synthetic: true,
+        section: "history",
+        child: { initials, dob, evaluation_date },
+        sources: collectSources(),
+        model: "gpt-4o-mini",
+      };
+      if (forceBadEl.checked) body.force_bad_age = true;
+      return body;
+    }
+
+    function renderFacts(facts) {
+      if (!facts || !facts.length) {
+        factsPanel.className = "panel empty";
+        factsPanel.textContent = "(no facts returned)";
+        return;
+      }
+      factsPanel.className = "panel";
+      factsPanel.innerHTML = "";
+      const list = el("ul");
+      facts.forEach((f) => {
+        const cite = (f.source_id || "?") + ", " + (f.source_date || "?");
+        const reporter = f.reporter ? " · reporter: " + f.reporter : "";
+        const li = el("li", { text: f.statement || "" });
+        li.appendChild(document.createTextNode(" "));
+        li.appendChild(el("span", { className: "cite", text: "(" + cite + reporter + ")" }));
+        list.appendChild(li);
+      });
+      factsPanel.appendChild(list);
+    }
+
+    function renderConflicts(conflicts) {
+      if (!conflicts || !conflicts.length) {
+        conflictsPanel.className = "panel empty";
+        conflictsPanel.textContent = "(no conflicts surfaced)";
+        return;
+      }
+      conflictsPanel.className = "panel";
+      conflictsPanel.innerHTML = "";
+      conflicts.forEach((c) => {
+        const block = el("div", { className: "conflict-item" }, [
+          el("strong", { text: c.topic || "Conflict" }),
+        ]);
+        const list = el("ul");
+        (c.versions || []).forEach((v) => {
+          const li = el("li", { text: v.statement || "" });
+          li.appendChild(document.createTextNode(" "));
+          li.appendChild(el("span", {
+            className: "cite",
+            text: "(" + (v.source_id || "?") + ", " + (v.source_date || "?") + ")",
+          }));
+          list.appendChild(li);
+        });
+        block.appendChild(list);
+        conflictsPanel.appendChild(block);
+      });
+    }
+
+    runBtn.addEventListener("click", async () => {
+      statusEl.className = "";
+      statusEl.textContent = "Thinking… (can take ~10–30s)";
+      answerEl.textContent = "";
+      factsPanel.className = "panel empty";
+      factsPanel.textContent = "";
+      conflictsPanel.className = "panel empty";
+      conflictsPanel.textContent = "";
+      metaEl.textContent = "";
+      resultEl.textContent = "";
+      runBtn.disabled = true;
+
+      let body;
+      try {
+        body = buildBody();
+      } catch (err) {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+        runBtn.disabled = false;
+        return;
+      }
+
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch (_) {}
+        resultEl.textContent = data ? JSON.stringify(data, null, 2) : text;
+
+        if (res.ok && data && data.answer) {
+          answerEl.textContent = data.answer.prose || JSON.stringify(data.answer, null, 2);
+          renderFacts(data.answer.facts);
+          renderConflicts(data.answer.conflicts);
+          metaEl.textContent =
+            "Model: " + (data.model || "?") +
+            " · Tokens: " + (data.tokens_used ?? "?") +
+            " · Cost: $" + (data.cost_usd ?? "?") +
+            " · Expected age: " + (data.age_years_expected ?? "?") +
+            " · Conflicts: " + ((data.answer.conflicts || []).length);
+          statusEl.textContent = "Done · HTTP " + res.status;
+        } else {
+          statusEl.className = "error";
+          statusEl.textContent = "Error · HTTP " + res.status;
+          answerEl.textContent = data && data.detail
+            ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail, null, 2))
+            : text;
+        }
+      } catch (err) {
+        statusEl.className = "error";
+        statusEl.textContent = "Request failed";
+        answerEl.textContent = String(err);
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

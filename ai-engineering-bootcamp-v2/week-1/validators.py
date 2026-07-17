@@ -1,11 +1,11 @@
-"""Deterministic validators — Phase 2 reliability seed (age/DOB first)."""
+"""Deterministic validators — age/DOB, provenance spine, conflict presence soft-check."""
 
 from __future__ import annotations
 
 import re
 from datetime import date, datetime
 
-from schemas import ReportSection
+from schemas import ReportSection, Source
 
 
 # Current-age claims only — historical "records said she was 7" must not fail the draft.
@@ -108,3 +108,99 @@ def validate_age_consistency(
             f"as of {evaluation_date}, but draft asserted otherwise ({examples})"
         )
     return expected
+
+
+def _all_sourced_facts(section: ReportSection):
+    yield from section.facts
+    for conflict in section.conflicts:
+        yield from conflict.versions
+
+
+def validate_provenance(section: ReportSection, sources: list[Source]) -> None:
+    """
+    Enforce the provenance spine: every fact/conflict version cites a real input
+    source_id and that source's exact date as source_date.
+    """
+
+    by_id = {s.id: s for s in sources}
+    errors: list[str] = []
+
+    for fact in _all_sourced_facts(section):
+        source = by_id.get(fact.source_id)
+        if source is None:
+            errors.append(f"unknown source_id={fact.source_id!r}")
+            continue
+        if fact.source_date != source.date:
+            errors.append(
+                f"source_date mismatch for {fact.source_id!r}: "
+                f"got {fact.source_date!r}, expected {source.date!r}"
+            )
+
+    if not section.facts:
+        errors.append("facts list is empty")
+
+    if errors:
+        raise ValueError("Provenance validation failed: " + "; ".join(errors[:5]))
+
+
+def needs_conflict_retry(section: ReportSection, sources: list[Source]) -> bool:
+    """True when multi-source input returned no conflicts — worth one forced re-check."""
+
+    return len(sources) >= 2 and len(section.conflicts) == 0
+
+
+# Positive allergy assertions — not mere mentions inside a disclaimer.
+_POSITIVE_ALLERGY = re.compile(
+    r"\b("
+    r"known allergy|undiagnosed|allerg(?:y|ies)\s+to|allergy\s+classification|"
+    r"peanut\s+allerg\w*|allerg\w*\s+to\s+peanuts?"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _source_positively_states_allergy(content: str) -> bool:
+    return bool(_POSITIVE_ALLERGY.search(content))
+
+
+def validate_reporter_fidelity(section: ReportSection, sources: list[Source]) -> None:
+    """
+    Reject confident wrong attribution: e.g. allergy details cited to a father
+    interview that only says health info came from the file/IEP.
+    """
+
+    by_id = {s.id: s for s in sources}
+    errors: list[str] = []
+
+    for fact in _all_sourced_facts(section):
+        source = by_id.get(fact.source_id)
+        if source is None:
+            continue
+        statement = fact.statement
+        if _POSITIVE_ALLERGY.search(statement) and not _source_positively_states_allergy(
+            source.content
+        ):
+            errors.append(
+                f"allergy claim cited to {fact.source_id!r} but that source does not "
+                f"positively state an allergy (statement={statement[:80]!r})"
+            )
+
+    if errors:
+        raise ValueError("Reporter fidelity failed: " + "; ".join(errors[:3]))
+
+
+CONFLICT_RETRY_INSTRUCTION = (
+    "Re-check the sources for disagreements before returning. Look specifically for: "
+    "identity/name mismatches; status contradictions (draft vs on-file vs active); "
+    "classification disagreements (e.g. Undiagnosed vs known allergy); and "
+    "omission plants where one source asserts something another omits. "
+    "Within-document contradictions count. Populate `conflicts` with both versions "
+    "and their real source_ids; do not return an empty conflicts list if any exist."
+)
+
+REPORTER_RETRY_INSTRUCTION = (
+    "Attribution error: do not cite allergy (or other clinical) details to a source "
+    "that does not positively state them. If the father interview only says health "
+    "info came from the school file/IEP, cite the nurse report or IEP for allergy "
+    "facts — never 'father indicated' an allergy he did not describe."
+)
