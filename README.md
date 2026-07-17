@@ -29,7 +29,7 @@ Earlier bootcamp modules — RAG, ADK/LangGraph agents, eval monitoring, and mor
 AI-Internship/
 ├── README.md                         # This file
 ├── ai-engineering-bootcamp-v2/       # AI Engineering Bootcamp v2
-│   └── week-1/                       # FastAPI /ask demo (5 stages)
+│   └── week-1/                       # Molly history /ask (provenance + conflicts)
 ├── ai-engineering-bootcamp/          # AI Engineering Bootcamp v1 modules
 ├── multi-agent-systems/              # Multi-Agent Systems course
 │   ├── week-1/ … week-4/
