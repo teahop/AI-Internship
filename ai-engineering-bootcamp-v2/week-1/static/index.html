@@ -6,10 +6,11 @@
   <title>TJ's test service for MH</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; background: #fff; }
+    body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; background: #fff; }
     h1 { font-size: 1.25rem; font-weight: 600; }
     h2 { font-size: 1.05rem; font-weight: 600; margin-top: 2rem; }
-    h3 { font-size: 0.95rem; font-weight: 600; margin: 0.75rem 0 0.35rem; }
+    h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.35rem; }
+    h4 { font-size: 0.85rem; font-weight: 600; margin: 0.5rem 0 0.25rem; color: #2a6f6f; }
     .badge {
       display: inline-block;
       margin: 0 0 0.75rem;
@@ -29,7 +30,7 @@
       margin: 1.25rem 0;
       overflow-x: auto;
     }
-    ul { padding-left: 1.2rem; }
+    ul { padding-left: 1.2rem; margin: 0.25rem 0; }
     code { background: #f3f3f3; padding: 0.1em 0.35em; border-radius: 3px; }
     .try {
       margin-top: 1.5rem;
@@ -57,11 +58,7 @@
       background: #fff;
       color: #1a1a1a;
     }
-    textarea {
-      min-height: 6rem;
-      line-height: 1.45;
-      resize: vertical;
-    }
+    textarea { min-height: 6rem; line-height: 1.45; resize: vertical; }
     .source-card {
       margin-top: 0.75rem;
       padding: 0.75rem;
@@ -107,7 +104,7 @@
       color: #1a1a1a;
     }
     .panel {
-      margin-top: 0.75rem;
+      margin-top: 0.5rem;
       padding: 0.75rem 0.9rem;
       background: #fff;
       border: 1px solid #d8e3e3;
@@ -116,8 +113,22 @@
       color: #1a1a1a;
     }
     .panel.empty { color: #777; }
-    .panel ul { margin: 0.35rem 0 0; }
     .panel .cite { color: #555; font-size: 0.85rem; }
+    .stage {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid #c5d6d6;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .stage .stage-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #2a6f6f;
+      margin-bottom: 0.35rem;
+    }
     .conflict-item { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e8eeee; }
     .conflict-item:first-child { border-top: none; padding-top: 0; margin-top: 0; }
     .meta { font-size: 0.9rem; color: #555; margin-top: 0.5rem; }
@@ -135,6 +146,8 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .pipe { font-family: ui-monospace, monospace; font-size: 0.85rem; color: #2a6f6f; margin: 0.5rem 0 0; }
+    .ingest-box { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed #c5d6d6; }
   </style>
 </head>
 <body>
@@ -151,35 +164,39 @@
       |  |
      ======
   </pre>
-  <p class="badge" id="buildBadge">provenance build · multi-source</p>
+  <p class="badge" id="buildBadge">staged pipeline · extract → conflicts → draft</p>
   <h1>Welcome to TJ's test service for MH.</h1>
   <p>Here are the things you can look at and try:</p>
   <ul>
-    <li><a href="/health">/health</a> — quick “is the service up?” check</li>
-    <li><a href="/docs">/docs</a> — interactive API docs (try <code>POST /ask</code> here)</li>
-    <li><a href="/redoc">/redoc</a> — alternate readable API docs</li>
-    <li><code>POST /ask</code> — draft a synthetic Background &amp; History (form below, <a href="/docs">/docs</a>, or curl)</li>
+    <li><a href="/health">/health</a> — liveness</li>
+    <li><a href="/docs">/docs</a> — OpenAPI (<code>/extract</code>, <code>/conflicts</code>, <code>/draft</code>, <code>/ask</code>, <code>/ingest</code>)</li>
+    <li>Pipeline below — intermediate ledger / conflicts / gaps visible <em>before</em> prose</li>
   </ul>
 
   <section class="try" aria-labelledby="try-title">
     <h2 id="try-title">Draft from dated sources</h2>
     <p class="hint">
-      Each source keeps its own <code>id</code>, <code>date</code>, and <code>label</code> — that is the provenance spine.
-      This page auto-loads the health-conflict fixture. Synthetic / fake data only — no real client records.
+      Extraction, comparison, and prose are separate stages. Run the pipeline to see the ledger,
+      conflicts/variance, and gap report before the narrative. Synthetic data only.
+    </p>
+    <p class="pipe">sources → /extract → LEDGER + gap + timelines → /conflicts → /draft → prose</p>
+
+    <p class="hint" id="emptyHint">
+      Session starts empty. Load a fixture above, or enter child data and sources directly.
     </p>
 
     <div class="fields">
       <div>
         <label for="initials">Initials</label>
-        <input id="initials" type="text" value="A.R." autocomplete="off" />
+        <input id="initials" type="text" value="" placeholder="e.g. A.R." autocomplete="off" />
       </div>
       <div>
         <label for="dob">Date of birth</label>
-        <input id="dob" type="date" value="2017-03-15" />
+        <input id="dob" type="date" value="" />
       </div>
       <div>
         <label for="evalDate">Evaluation date</label>
-        <input id="evalDate" type="date" value="2026-07-16" />
+        <input id="evalDate" type="date" value="" />
       </div>
     </div>
 
@@ -187,28 +204,56 @@
       <button type="button" class="ghost" id="loadHistoryBtn">Load history fixture</button>
       <button type="button" class="ghost" id="loadHealthBtn">Load health-conflict fixture</button>
       <button type="button" class="ghost" id="addSourceBtn">Add source</button>
+      <button type="button" class="ghost danger" id="clearBtn">Clear</button>
     </div>
 
     <div id="sources"></div>
+    <p class="hint" id="sourcesEmptyHint" style="margin-top:0.5rem">No sources yet.</p>
 
-    <div class="row">
-      <label class="chk"><input type="checkbox" id="forceBad" /> Demo age guardrail (force_bad_age)</label>
-      <button type="button" id="runBtn">Run draft</button>
-      <span id="status">Loading fixture…</span>
+    <div class="ingest-box">
+      <h3>Ingest (classify raw text — confirm before use)</h3>
+      <textarea id="ingestText" placeholder="Paste a raw document to classify source_type / date / label…"></textarea>
+      <div class="row">
+        <button type="button" class="ghost" id="ingestBtn">Classify with /ingest</button>
+        <span id="ingestStatus"></span>
+      </div>
+      <div class="panel empty" id="ingestPanel">(suggestion will show here — confirm before adding)</div>
     </div>
 
-    <label for="answer">Draft</label>
-    <div class="answer" id="answer">(draft will show up here)</div>
+    <div class="row">
+      <button type="button" id="runBtn">Run pipeline</button>
+      <button type="button" class="ghost" id="askBtn">Run /ask only (course contract)</button>
+      <span id="status">Empty — load a fixture or enter a case.</span>
+    </div>
 
-    <h3>Attributed facts</h3>
-    <div class="panel empty" id="factsPanel">(facts will show here)</div>
+    <div class="stage" id="stageExtract">
+      <div class="stage-label">1 · Extract — ledger &amp; gap report</div>
+      <div class="panel empty" id="ledgerPanel">(run pipeline)</div>
+      <h4>Gap report</h4>
+      <div class="panel empty" id="gapPanel">(run pipeline)</div>
+      <h4>Timelines (as_of)</h4>
+      <div class="panel empty" id="timelinePanel">(run pipeline)</div>
+      <p class="meta" id="extractMeta"></p>
+    </div>
 
-    <h3>Conflicts surfaced</h3>
-    <div class="panel empty" id="conflictsPanel">(conflicts will show here)</div>
+    <div class="stage" id="stageConflicts">
+      <div class="stage-label">2 · Conflicts &amp; variance</div>
+      <h4>Record conflicts</h4>
+      <div class="panel empty" id="conflictsPanel">(run pipeline)</div>
+      <h4>Perspectival variance</h4>
+      <div class="panel empty" id="variancePanel">(run pipeline)</div>
+    </div>
 
-    <p class="meta" id="meta"></p>
+    <div class="stage" id="stageDraft">
+      <div class="stage-label">3 · Draft — prose</div>
+      <div class="answer" id="answer">(draft will show up here)</div>
+      <h4>Attributed statements</h4>
+      <div class="panel empty" id="factsPanel">(facts will show here)</div>
+      <p class="meta" id="meta"></p>
+    </div>
+
     <details>
-      <summary>Show full JSON response</summary>
+      <summary>Show full JSON (last response)</summary>
       <pre class="out" id="result"></pre>
     </details>
   </section>
@@ -222,16 +267,26 @@
     const initialsEl = document.getElementById("initials");
     const dobEl = document.getElementById("dob");
     const evalEl = document.getElementById("evalDate");
-    const forceBadEl = document.getElementById("forceBad");
     const sourcesEl = document.getElementById("sources");
     const runBtn = document.getElementById("runBtn");
+    const askBtn = document.getElementById("askBtn");
     const statusEl = document.getElementById("status");
     const answerEl = document.getElementById("answer");
     const factsPanel = document.getElementById("factsPanel");
     const conflictsPanel = document.getElementById("conflictsPanel");
+    const variancePanel = document.getElementById("variancePanel");
+    const ledgerPanel = document.getElementById("ledgerPanel");
+    const gapPanel = document.getElementById("gapPanel");
+    const timelinePanel = document.getElementById("timelinePanel");
+    const extractMeta = document.getElementById("extractMeta");
     const metaEl = document.getElementById("meta");
     const resultEl = document.getElementById("result");
+    const ingestText = document.getElementById("ingestText");
+    const ingestBtn = document.getElementById("ingestBtn");
+    const ingestStatus = document.getElementById("ingestStatus");
+    const ingestPanel = document.getElementById("ingestPanel");
     let sourceSeq = 0;
+    let lastIngest = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -240,7 +295,6 @@
           if (k === "className" || k === "class") node.className = v;
           else if (k === "text") node.textContent = v;
           else if (k === "value") node.value = v;
-          else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
           else node.setAttribute(k, v);
         });
       }
@@ -258,47 +312,26 @@
     function sourceCard(data) {
       data = data || {};
       sourceSeq += 1;
-      const idInput = el("input", { class: "s-id", type: "text", value: data.id || "" });
+      const idInput = el("input", { class: "s-id", type: "text" });
       idInput.value = data.id || "";
       idInput.placeholder = "nurse-health-2024";
-
       const typeSel = el("select", { class: "s-type" });
-      SOURCE_TYPES.forEach((t) => {
-        const opt = el("option", { value: t, text: t });
-        typeSel.appendChild(opt);
-      });
+      SOURCE_TYPES.forEach((t) => typeSel.appendChild(el("option", { value: t, text: t })));
       typeSel.value = data.type || "other";
-
       const dateInput = el("input", { class: "s-date", type: "date" });
       dateInput.value = data.date || "";
-
       const labelInput = el("input", { class: "s-label", type: "text" });
       labelInput.value = data.label || "";
-      labelInput.placeholder = "School Nurse Health Report";
-
       const contentArea = el("textarea", { class: "s-content" });
       contentArea.value = data.content || "";
-      contentArea.placeholder = "Paste this source's text only…";
-
-      const removeBtn = el("button", {
-        type: "button",
-        className: "ghost danger",
-        text: "Remove",
-      });
+      const removeBtn = el("button", { type: "button", className: "ghost danger", text: "Remove" });
+      const card = el("div", { className: "source-card" });
       removeBtn.addEventListener("click", () => {
-        if (sourcesEl.children.length <= 1) {
-          statusEl.className = "error";
-          statusEl.textContent = "Keep at least one source.";
-          return;
-        }
         card.remove();
+        updateSourcesEmptyHint();
       });
-
-      const card = el("div", { className: "source-card" }, [
-        el("div", { className: "card-head" }, [
-          el("span", { text: "Source" }),
-          removeBtn,
-        ]),
+      card.append(
+        el("div", { className: "card-head" }, [el("span", { text: "Source" }), removeBtn]),
         el("div", { className: "fields" }, [
           field("Id", idInput),
           field("Type", typeSel),
@@ -307,31 +340,58 @@
         ]),
         el("label", { text: "Content" }),
         contentArea,
-      ]);
+      );
       return card;
     }
 
-    function clearSources() {
-      sourcesEl.innerHTML = "";
+    function clearSources() { sourcesEl.innerHTML = ""; }
+    function updateSourcesEmptyHint() {
+      const hint = document.getElementById("sourcesEmptyHint");
+      if (hint) hint.style.display = sourcesEl.children.length ? "none" : "block";
     }
-
     function setChild(child) {
       if (!child) return;
       initialsEl.value = child.initials || "";
       dobEl.value = child.dob || "";
       evalEl.value = child.evaluation_date || "";
     }
-
+    function resetPipelinePanels() {
+      setEmpty(ledgerPanel, "(run pipeline)");
+      setEmpty(gapPanel, "(run pipeline)");
+      setEmpty(timelinePanel, "(run pipeline)");
+      setEmpty(conflictsPanel, "(run pipeline)");
+      setEmpty(variancePanel, "(run pipeline)");
+      setEmpty(factsPanel, "(facts will show here)");
+      answerEl.textContent = "(draft will show up here)";
+      extractMeta.textContent = "";
+      metaEl.textContent = "";
+      resultEl.textContent = "";
+      ingestText.value = "";
+      ingestStatus.textContent = "";
+      setEmpty(ingestPanel, "(suggestion will show here — confirm before adding)");
+      lastIngest = null;
+    }
+    function clearSession() {
+      initialsEl.value = "";
+      dobEl.value = "";
+      evalEl.value = "";
+      clearSources();
+      sourceSeq = 0;
+      resetPipelinePanels();
+      statusEl.className = "";
+      statusEl.textContent = "Empty — load a fixture or enter a case.";
+      updateSourcesEmptyHint();
+    }
     function applyFixture(data) {
       setChild(data.child);
       clearSources();
       (data.sources || []).forEach((s) => sourcesEl.appendChild(sourceCard(s)));
+      resetPipelinePanels();
       statusEl.className = "";
       statusEl.textContent = "Fixture loaded — " + (data.sources || []).length + " source(s).";
+      updateSourcesEmptyHint();
     }
-
     async function loadFixture(name) {
-      statusEl.className = "";
       statusEl.textContent = "Loading fixture…";
       const res = await fetch("/fixtures/" + name);
       if (!res.ok) throw new Error("Could not load fixture " + name);
@@ -340,12 +400,10 @@
 
     document.getElementById("addSourceBtn").addEventListener("click", () => {
       sourcesEl.appendChild(sourceCard({
-        id: "source-" + (sourceSeq + 1),
-        type: "other",
-        date: evalEl.value || "",
-        label: "",
-        content: "",
+        id: "source-" + (sourceSeq + 1), type: "other",
+        date: evalEl.value || "", label: "", content: "",
       }));
+      updateSourcesEmptyHint();
     });
     document.getElementById("loadHistoryBtn").addEventListener("click", () => {
       loadFixture("synthetic_history_case.json").catch((err) => {
@@ -359,30 +417,18 @@
         statusEl.textContent = String(err.message || err);
       });
     });
-
-    // Auto-load health-conflict fixture so the page is never an empty form.
-    loadFixture("synthetic_health_conflict_case.json").catch((err) => {
-      statusEl.className = "error";
-      statusEl.textContent = String(err.message || err);
-      sourcesEl.appendChild(sourceCard({
-        id: "source-1",
-        type: "other",
-        date: evalEl.value,
-        label: "",
-        content: "",
-      }));
-    });
+    document.getElementById("clearBtn").addEventListener("click", () => clearSession());
+    // Start empty — no auto-loaded fixture.
+    clearSession();
 
     function collectSources() {
-      const cards = [...sourcesEl.querySelectorAll(".source-card")];
-      const sources = cards.map((card) => {
-        const id = card.querySelector(".s-id").value.trim();
-        const type = card.querySelector(".s-type").value;
-        const date = card.querySelector(".s-date").value;
-        const label = card.querySelector(".s-label").value.trim();
-        const content = card.querySelector(".s-content").value.trim();
-        return { id, type, date, label, content };
-      });
+      const sources = [...sourcesEl.querySelectorAll(".source-card")].map((card) => ({
+        id: card.querySelector(".s-id").value.trim(),
+        type: card.querySelector(".s-type").value,
+        date: card.querySelector(".s-date").value,
+        label: card.querySelector(".s-label").value.trim(),
+        content: card.querySelector(".s-content").value.trim(),
+      }));
       if (!sources.length) throw new Error("Add at least one source.");
       for (const s of sources) {
         if (!s.id || !s.date || !s.label || !s.content) {
@@ -392,126 +438,338 @@
       return sources;
     }
 
-    function buildBody() {
+    function caseBody() {
       const initials = (initialsEl.value || "A.R.").trim();
       const dob = dobEl.value;
       const evaluation_date = evalEl.value;
       if (!dob || !evaluation_date) throw new Error("Pick a DOB and evaluation date.");
-      const body = {
+      return {
         confirm_synthetic: true,
         section: "history",
         child: { initials, dob, evaluation_date },
         sources: collectSources(),
         model: "gpt-4o-mini",
       };
-      if (forceBadEl.checked) body.force_bad_age = true;
-      return body;
+    }
+
+    function setEmpty(panel, msg) {
+      panel.className = "panel empty";
+      panel.textContent = msg;
+    }
+
+    function renderLedger(facts) {
+      if (!facts || !facts.length) {
+        setEmpty(ledgerPanel, "(no facts)");
+        return;
+      }
+      ledgerPanel.className = "panel";
+      ledgerPanel.innerHTML = "";
+      const list = el("ul");
+      facts.forEach((f) => {
+        const line =
+          (f.id || "?") + "  " + (f.subject || "") + "/" + (f.predicate || "") +
+          (f.qualifier ? ":" + f.qualifier : "") +
+          "  " + (f.assertion || "") + "=" + JSON.stringify(f.value) +
+          "  @" + (f.as_of_date || f.source_date || "?") +
+          "  (" + (f.source_id || "?") + ")";
+        list.appendChild(el("li", { text: line }));
+      });
+      ledgerPanel.appendChild(list);
+    }
+
+    function renderGap(gap) {
+      const sections = (gap && gap.sections) || [];
+      if (!sections.length) {
+        setEmpty(gapPanel, "(no gap report)");
+        return;
+      }
+      gapPanel.className = "panel";
+      gapPanel.innerHTML = "";
+      sections.forEach((s) => {
+        gapPanel.appendChild(el("div", {
+          text: s.section + " · available=" + s.available +
+            " · empty stages: " + ((s.life_stages_empty || []).join(", ") || "none") +
+            " · missing predicates: " + (s.predicates_missing || []).length,
+        }));
+        const fresh = (s.predicate_freshness || []).filter((r) => r.state !== "current");
+        if (fresh.length) {
+          const ul = el("ul");
+          fresh.slice(0, 12).forEach((r) => {
+            ul.appendChild(el("li", {
+              text: r.predicate + ": " + r.state +
+                (r.latest_as_of_date ? " (latest " + r.latest_as_of_date + ")" : ""),
+            }));
+          });
+          gapPanel.appendChild(el("h4", { text: "Freshness (non-current)" }));
+          gapPanel.appendChild(ul);
+        }
+      });
+    }
+
+    function renderTimelines(timelines) {
+      const multi = (timelines || []).filter((t) => (t.entries || []).length > 0);
+      if (!multi.length) {
+        setEmpty(timelinePanel, "(no as_of timelines)");
+        return;
+      }
+      timelinePanel.className = "panel";
+      timelinePanel.innerHTML = "";
+      multi.filter((t) => t.entries.length > 1 || ["age_years", "grade"].includes(t.predicate))
+        .forEach((t) => {
+          const parts = (t.entries || []).map((e) =>
+            e.value + "@" + e.as_of_date + (e.is_latest ? "*" : "") + " (" + e.source_id + ")"
+          );
+          timelinePanel.appendChild(el("div", { text: (t.topic || t.predicate) + ": " + parts.join(" → ") }));
+        });
+    }
+
+    function renderDisagreements(panel, items, emptyMsg) {
+      if (!items || !items.length) {
+        setEmpty(panel, emptyMsg);
+        return;
+      }
+      panel.className = "panel";
+      panel.innerHTML = "";
+      items.forEach((c) => {
+        const block = el("div", { className: "conflict-item" }, [
+          el("strong", { text: c.topic || c.predicate || "Item" }),
+        ]);
+        const list = el("ul");
+        (c.versions || []).forEach((v) => {
+          list.appendChild(el("li", {
+            text: (v.assertion || "") + " " + JSON.stringify(v.value) +
+              " (" + (v.source_id || "?") + ", " + (v.source_date || "?") + ")",
+          }));
+        });
+        block.appendChild(list);
+        panel.appendChild(block);
+      });
     }
 
     function renderFacts(facts) {
       if (!facts || !facts.length) {
-        factsPanel.className = "panel empty";
-        factsPanel.textContent = "(no facts returned)";
+        setEmpty(factsPanel, "(no facts returned)");
         return;
       }
       factsPanel.className = "panel";
       factsPanel.innerHTML = "";
       const list = el("ul");
       facts.forEach((f) => {
-        const cite = (f.source_id || "?") + ", " + (f.source_date || "?");
-        const reporter = f.reporter ? " · reporter: " + f.reporter : "";
         const li = el("li", { text: f.statement || "" });
         li.appendChild(document.createTextNode(" "));
-        li.appendChild(el("span", { className: "cite", text: "(" + cite + reporter + ")" }));
+        li.appendChild(el("span", {
+          className: "cite",
+          text: "(" + (f.fact_id || "?") + " · " + (f.source_id || "?") + ", " + (f.source_date || "?") + ")",
+        }));
         list.appendChild(li);
       });
       factsPanel.appendChild(list);
     }
 
-    function renderConflicts(conflicts) {
-      if (!conflicts || !conflicts.length) {
-        conflictsPanel.className = "panel empty";
-        conflictsPanel.textContent = "(no conflicts surfaced)";
-        return;
-      }
-      conflictsPanel.className = "panel";
-      conflictsPanel.innerHTML = "";
-      conflicts.forEach((c) => {
-        const block = el("div", { className: "conflict-item" }, [
-          el("strong", { text: c.topic || "Conflict" }),
-        ]);
-        const list = el("ul");
-        (c.versions || []).forEach((v) => {
-          const li = el("li", { text: v.statement || "" });
-          li.appendChild(document.createTextNode(" "));
-          li.appendChild(el("span", {
-            className: "cite",
-            text: "(" + (v.source_id || "?") + ", " + (v.source_date || "?") + ")",
-          }));
-          list.appendChild(li);
-        });
-        block.appendChild(list);
-        conflictsPanel.appendChild(block);
+    function resetPanels() {
+      answerEl.textContent = "";
+      setEmpty(ledgerPanel, "");
+      setEmpty(gapPanel, "");
+      setEmpty(timelinePanel, "");
+      setEmpty(conflictsPanel, "");
+      setEmpty(variancePanel, "");
+      setEmpty(factsPanel, "");
+      extractMeta.textContent = "";
+      metaEl.textContent = "";
+      resultEl.textContent = "";
+    }
+
+    async function postJson(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch (_) {}
+      if (!res.ok) {
+        const detail = data && data.detail
+          ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))
+          : text;
+        throw new Error("HTTP " + res.status + ": " + detail);
+      }
+      return data;
     }
 
     runBtn.addEventListener("click", async () => {
       statusEl.className = "";
-      statusEl.textContent = "Thinking… (can take ~10–30s)";
-      answerEl.textContent = "";
-      factsPanel.className = "panel empty";
-      factsPanel.textContent = "";
-      conflictsPanel.className = "panel empty";
-      conflictsPanel.textContent = "";
-      metaEl.textContent = "";
-      resultEl.textContent = "";
+      statusEl.textContent = "Pipeline: extracting…";
+      resetPanels();
       runBtn.disabled = true;
-
+      askBtn.disabled = true;
       let body;
-      try {
-        body = buildBody();
-      } catch (err) {
+      try { body = caseBody(); }
+      catch (err) {
         statusEl.className = "error";
         statusEl.textContent = String(err.message || err);
         runBtn.disabled = false;
+        askBtn.disabled = false;
         return;
       }
-
       try {
-        const res = await fetch("/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+        const extract = await postJson("/extract", {
+          confirm_synthetic: true,
+          child: body.child,
+          sources: body.sources,
+          model: body.model,
         });
-        const text = await res.text();
-        let data = null;
-        try { data = JSON.parse(text); } catch (_) {}
-        resultEl.textContent = data ? JSON.stringify(data, null, 2) : text;
+        resultEl.textContent = JSON.stringify(extract, null, 2);
+        renderLedger(extract.ledger && extract.ledger.facts);
+        renderGap(extract.gap_report);
+        renderTimelines(extract.timelines);
+        extractMeta.textContent =
+          "Extract tokens: " + (extract.tokens_used ?? "?") +
+          " · Cost: $" + (extract.cost_usd ?? "?") +
+          " · Facts: " + ((extract.ledger && extract.ledger.facts) || []).length;
 
-        if (res.ok && data && data.answer) {
-          answerEl.textContent = data.answer.prose || JSON.stringify(data.answer, null, 2);
-          renderFacts(data.answer.facts);
-          renderConflicts(data.answer.conflicts);
-          metaEl.textContent =
-            "Model: " + (data.model || "?") +
-            " · Tokens: " + (data.tokens_used ?? "?") +
-            " · Cost: $" + (data.cost_usd ?? "?") +
-            " · Expected age: " + (data.age_years_expected ?? "?") +
-            " · Conflicts: " + ((data.answer.conflicts || []).length);
-          statusEl.textContent = "Done · HTTP " + res.status;
+        statusEl.textContent = "Pipeline: detecting conflicts…";
+        const conf = await postJson("/conflicts", {
+          confirm_synthetic: true,
+          ledger: extract.ledger,
+        });
+        renderDisagreements(conflictsPanel, conf.conflicts, "(no record conflicts)");
+        renderDisagreements(variancePanel, conf.variance, "(no variance)");
+
+        statusEl.textContent = "Pipeline: drafting…";
+        const draft = await postJson("/draft", {
+          confirm_synthetic: true,
+          section: "history",
+          ledger: extract.ledger,
+          conflicts: conf.conflicts || [],
+          variance: conf.variance || [],
+          model: body.model,
+          entailment_model: "gpt-4o-mini",
+        });
+        resultEl.textContent = JSON.stringify({ extract_meta: {
+          tokens: extract.tokens_used, cost: extract.cost_usd
+        }, conflicts: conf, draft }, null, 2);
+
+        if (draft.section_populated && draft.answer) {
+          answerEl.textContent = draft.answer.prose || "";
+          renderFacts(draft.answer.facts);
         } else {
-          statusEl.className = "error";
-          statusEl.textContent = "Error · HTTP " + res.status;
-          answerEl.textContent = data && data.detail
-            ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail, null, 2))
-            : text;
+          answerEl.textContent = draft.empty_reason || "(section not populated)";
         }
+        const totalTokens = (extract.tokens_used || 0) + (draft.tokens_used || 0);
+        const totalCost = +(
+          (Number(extract.cost_usd) || 0) + (Number(draft.cost_usd) || 0)
+        ).toFixed(6);
+        metaEl.textContent =
+          "Draft tokens: " + (draft.tokens_used ?? "?") +
+          " (by stage: " + JSON.stringify(draft.tokens_by_stage || {}) + ")" +
+          " · Pipeline total tokens: " + totalTokens +
+          " · Pipeline total cost: $" + totalCost +
+          " · Conflicts: " + ((conf.conflicts || []).length) +
+          " · Variance: " + ((conf.variance || []).length);
+        statusEl.textContent = "Done · pipeline complete";
       } catch (err) {
         statusEl.className = "error";
-        statusEl.textContent = "Request failed";
-        answerEl.textContent = String(err);
+        statusEl.textContent = String(err.message || err);
+        answerEl.textContent = String(err.message || err);
       } finally {
         runBtn.disabled = false;
+        askBtn.disabled = false;
+      }
+    });
+
+    askBtn.addEventListener("click", async () => {
+      statusEl.className = "";
+      statusEl.textContent = "Running /ask (internal pipeline)…";
+      resetPanels();
+      runBtn.disabled = true;
+      askBtn.disabled = true;
+      let body;
+      try { body = caseBody(); }
+      catch (err) {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+        runBtn.disabled = false;
+        askBtn.disabled = false;
+        return;
+      }
+      try {
+        const data = await postJson("/ask", body);
+        resultEl.textContent = JSON.stringify(data, null, 2);
+        if (data.answer) {
+          answerEl.textContent = data.answer.prose || "";
+          renderFacts(data.answer.facts);
+          renderDisagreements(conflictsPanel, data.answer.conflicts, "(no conflicts on answer)");
+        }
+        metaEl.textContent =
+          "Model: " + (data.model || "?") +
+          " · Tokens (full pipeline): " + (data.tokens_used ?? "?") +
+          " · Cost: $" + (data.cost_usd ?? "?") +
+          " · Expected age: " + (data.age_years_expected ?? "?");
+        statusEl.textContent = "Done · /ask";
+      } catch (err) {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+      } finally {
+        runBtn.disabled = false;
+        askBtn.disabled = false;
+      }
+    });
+
+    ingestBtn.addEventListener("click", async () => {
+      const content = (ingestText.value || "").trim();
+      if (!content) {
+        ingestStatus.className = "error";
+        ingestStatus.textContent = "Paste document text first.";
+        return;
+      }
+      ingestStatus.className = "";
+      ingestStatus.textContent = "Classifying…";
+      ingestBtn.disabled = true;
+      try {
+        const data = await postJson("/ingest", {
+          confirm_synthetic: true,
+          content,
+          model: "gpt-4o-mini",
+        });
+        lastIngest = data.suggestion;
+        ingestPanel.className = "panel";
+        ingestPanel.innerHTML = "";
+        ingestPanel.appendChild(el("div", {
+          text: "Suggested — confirm before use (never applied silently):",
+        }));
+        ingestPanel.appendChild(el("ul", null, [
+          el("li", { text: "type: " + data.suggestion.source_type }),
+          el("li", { text: "date: " + data.suggestion.source_date }),
+          el("li", { text: "label: " + data.suggestion.label }),
+        ]));
+        const addBtn = el("button", {
+          type: "button",
+          className: "ghost",
+          text: "Add as confirmed source",
+        });
+        addBtn.addEventListener("click", () => {
+          if (!lastIngest) return;
+          sourcesEl.appendChild(sourceCard({
+            id: "ingested-" + (sourceSeq + 1),
+            type: lastIngest.source_type,
+            date: lastIngest.source_date,
+            label: lastIngest.label,
+            content: content,
+          }));
+          ingestStatus.textContent = "Source card added — review id/date before drafting.";
+        });
+        ingestPanel.appendChild(addBtn);
+        ingestPanel.appendChild(el("p", {
+          className: "meta",
+          text: data.note + " · tokens=" + data.tokens_used + " · $" + data.cost_usd,
+        }));
+        ingestStatus.textContent = "Suggestion ready — confirm before adding.";
+      } catch (err) {
+        ingestStatus.className = "error";
+        ingestStatus.textContent = String(err.message || err);
+      } finally {
+        ingestBtn.disabled = false;
       }
     });
   </script>

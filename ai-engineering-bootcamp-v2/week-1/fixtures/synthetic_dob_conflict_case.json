@@ -1,0 +1,58 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "K.L.",
+    "dob": "2016-08-10",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "school-header-2026",
+      "type": "school",
+      "date": "2026-05-01",
+      "label": "School cumulative file header",
+      "content": "Student: K.L. Date of birth on school header: 2015-08-10. Currently enrolled in grade 4. Attendance regular. No IEP on file."
+    },
+    {
+      "id": "teacher-2026",
+      "type": "teacher",
+      "date": "2026-06-01",
+      "label": "Classroom teacher questionnaire",
+      "content": "Grade 4 teacher: reading fluency below peers; spelling weak. Student is attentive in class. No known allergies observed at school."
+    }
+  ],
+  "expected_conflicts": [
+    {
+      "topic": "dob",
+      "predicate": "dob",
+      "source_ids": ["school-header-2026", "request"]
+    }
+  ],
+  "expected_facts": [
+    {
+      "statement": "Date of birth on school header: 2015-08-10.",
+      "source_id": "school-header-2026",
+      "life_stage": "birth"
+    },
+    {
+      "statement": "Currently enrolled in grade 4.",
+      "source_id": "school-header-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Reading fluency below peers; spelling weak.",
+      "source_id": "teacher-2026",
+      "life_stage": "current"
+    }
+  ],
+  "expected_ledger_facts": [
+    {
+      "source_id": "school-header-2026",
+      "predicate": "dob",
+      "assertion": "asserted",
+      "value": "2015-08-10"
+    }
+  ],
+  "model": "gpt-4o-mini"
+}

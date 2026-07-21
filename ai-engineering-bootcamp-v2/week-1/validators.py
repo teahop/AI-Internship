@@ -1,14 +1,19 @@
-"""Deterministic validators — age/DOB, provenance spine, conflict presence soft-check."""
+"""Deterministic validators — age/DOB and provenance spine only.
+
+Conflict detection is /conflicts (conflicts.py). No clinical topic keywords here.
+"""
 
 from __future__ import annotations
 
 import re
 from datetime import date, datetime
 
-from schemas import ReportSection, Source
+from derived import AGE_DERIVATION, validate_derived_facts
+from schemas import Fact, Ledger, ReportSection, Source
 
 
 # Current-age claims only — historical "records said she was 7" must not fail the draft.
+# Kept as a backstop for uncited age mentions; primary check is derived-fact recomputation.
 _CURRENT_AGE_PATTERNS = [
     # "is an 8-year-old", "is a 8 year old"
     re.compile(
@@ -80,22 +85,71 @@ def _extract_wrong_current_ages(text: str, expected: int) -> list[tuple[int, str
     return wrong
 
 
+def _has_current_age_mention(text: str, expected: int) -> bool:
+    for pattern in _CURRENT_AGE_PATTERNS:
+        for match in pattern.finditer(text):
+            asserted = int(match.group("age"))
+            if asserted != expected:
+                continue
+            window = _sentence_window(text, match.start(), match.end())
+            if _HISTORICAL_HINT.search(window):
+                continue
+            return True
+    return False
+
+
+def derived_age_facts(facts: list[Fact]) -> list[Fact]:
+    return [
+        f
+        for f in facts
+        if f.derivation == AGE_DERIVATION and f.predicate == "age_years"
+    ]
+
+
 def validate_age_consistency(
     section: ReportSection,
     *,
     dob: str,
     evaluation_date: str,
+    ledger: Ledger | None = None,
 ) -> int:
     """
-    Recompute age from dob + evaluation_date.
-    Reject drafts that assert a *current* age different from that value.
-    Historical mentions (e.g. "2024 file stated student was 7") are allowed.
+    Primary: recompute derived age_years fact(s) and require prose that states
+    current age to cite that fact. Regex remains a backstop for wrong/uncited ages.
 
     Returns the expected age in whole years when valid.
-    Raises ValueError when inconsistent (caller retries / fails cleanly).
     """
 
     expected = compute_age_years(dob, evaluation_date)
+
+    if ledger is not None:
+        validate_derived_facts(ledger.facts, ledger.child)
+        ages = derived_age_facts(ledger.facts)
+        if len(ages) != 1:
+            raise ValueError(
+                f"Expected exactly one derived age_years fact, found {len(ages)}"
+            )
+        age_fact = ages[0]
+        if age_fact.value != str(expected):
+            raise ValueError(
+                f"Derived age fact {age_fact.id} has value {age_fact.value!r}, "
+                f"expected {expected!r}"
+            )
+
+        citing = [
+            f
+            for f in section.facts
+            if f.fact_id == age_fact.id
+        ]
+        prose_mentions_age = _has_current_age_mention(section.prose, expected) or any(
+            _has_current_age_mention(f.statement, expected) for f in section.facts
+        )
+        if prose_mentions_age and not citing:
+            raise ValueError(
+                f"Prose asserts current age {expected} but does not cite "
+                f"derived fact {age_fact.id}"
+            )
+
     texts = [section.prose, *(fact.statement for fact in section.facts)]
     wrong: list[tuple[int, str]] = []
     for text in texts:
@@ -120,12 +174,17 @@ def validate_provenance(section: ReportSection, sources: list[Source]) -> None:
     """
     Enforce the provenance spine: every fact/conflict version cites a real input
     source_id and that source's exact date as source_date.
+
+    Synthetic source_ids (computed / request) are allowed for derived/request facts.
     """
 
     by_id = {s.id: s for s in sources}
+    synthetic = {"computed", "request"}
     errors: list[str] = []
 
     for fact in _all_sourced_facts(section):
+        if fact.source_id in synthetic:
+            continue
         source = by_id.get(fact.source_id)
         if source is None:
             errors.append(f"unknown source_id={fact.source_id!r}")
@@ -141,66 +200,3 @@ def validate_provenance(section: ReportSection, sources: list[Source]) -> None:
 
     if errors:
         raise ValueError("Provenance validation failed: " + "; ".join(errors[:5]))
-
-
-def needs_conflict_retry(section: ReportSection, sources: list[Source]) -> bool:
-    """True when multi-source input returned no conflicts — worth one forced re-check."""
-
-    return len(sources) >= 2 and len(section.conflicts) == 0
-
-
-# Positive allergy assertions — not mere mentions inside a disclaimer.
-_POSITIVE_ALLERGY = re.compile(
-    r"\b("
-    r"known allergy|undiagnosed|allerg(?:y|ies)\s+to|allergy\s+classification|"
-    r"peanut\s+allerg\w*|allerg\w*\s+to\s+peanuts?"
-    r")\b",
-    re.IGNORECASE,
-)
-
-
-def _source_positively_states_allergy(content: str) -> bool:
-    return bool(_POSITIVE_ALLERGY.search(content))
-
-
-def validate_reporter_fidelity(section: ReportSection, sources: list[Source]) -> None:
-    """
-    Reject confident wrong attribution: e.g. allergy details cited to a father
-    interview that only says health info came from the file/IEP.
-    """
-
-    by_id = {s.id: s for s in sources}
-    errors: list[str] = []
-
-    for fact in _all_sourced_facts(section):
-        source = by_id.get(fact.source_id)
-        if source is None:
-            continue
-        statement = fact.statement
-        if _POSITIVE_ALLERGY.search(statement) and not _source_positively_states_allergy(
-            source.content
-        ):
-            errors.append(
-                f"allergy claim cited to {fact.source_id!r} but that source does not "
-                f"positively state an allergy (statement={statement[:80]!r})"
-            )
-
-    if errors:
-        raise ValueError("Reporter fidelity failed: " + "; ".join(errors[:3]))
-
-
-CONFLICT_RETRY_INSTRUCTION = (
-    "Re-check the sources for disagreements before returning. Look specifically for: "
-    "identity/name mismatches; status contradictions (draft vs on-file vs active); "
-    "classification disagreements (e.g. Undiagnosed vs known allergy); and "
-    "omission plants where one source asserts something another omits. "
-    "Within-document contradictions count. Populate `conflicts` with both versions "
-    "and their real source_ids; do not return an empty conflicts list if any exist."
-)
-
-REPORTER_RETRY_INSTRUCTION = (
-    "Attribution error: do not cite allergy (or other clinical) details to a source "
-    "that does not positively state them. If the father interview only says health "
-    "info came from the school file/IEP, cite the nurse report or IEP for allergy "
-    "facts — never 'father indicated' an allergy he did not describe."
-)

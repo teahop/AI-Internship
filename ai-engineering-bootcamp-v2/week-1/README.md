@@ -1,237 +1,159 @@
-# Week 1 — Psycho-ed History Draft (`/ask`)
+# Week 1 — Source-attributed Background & History (staged pipeline)
 
-Customize the bootcamp `/ask` starter into a **source-attributed Background & History** drafter for a solo Licensed Educational Psychologist (Molly Harrison). The tool drafts; she reviews, edits, and signs.
+A drafting service for a Licensed Educational Psychologist's evaluation reports.
+Typed case documents go in; a validated, fully attributed report section comes out.
+She reviews and signs — the tool drafts, never decides.
 
-## Compliance: OpenAI ≠ BastionGPT (read this first)
+## Compliance: OpenAI ≠ BastionGPT
 
 | Runtime | What it is | What data it may see |
 |---------|------------|----------------------|
 | **This repo (OpenAI via `OPENAI_API_KEY`)** | Learning / build sandbox | **Synthetic / de-identified fixtures only** |
 | **BastionGPT (BAA)** | Production drafting for real cases | Covered under your BAA — **not this repo** |
 
-Same code shape, different runtime. **Do not paste real student/client records into this OpenAI build.** Production drafting happens on BastionGPT. That separation is the compliance story.
+Every request must set `"confirm_synthetic": true`. Missing/false → refuse before any model call.
+Nothing is persisted — the ledger is returned to the caller, never stored.
 
-Every `/ask` request must set `"confirm_synthetic": true`. If that flag is missing or false, the API refuses before any model call.
+## Architecture
+
+```
+sources → /extract → LEDGER + gap_report + timelines
+              ↓
+         /conflicts  (deterministic — no model call)
+              ↓
+           /draft → ReportSection + review queue
+```
+
+Extraction, comparison, and prose are separate stages. One combined model call
+produced fluent narrative that silently harmonized contradictory sources.
+Separating them removes that pressure.
+
+| Stage | Endpoint | Model? | Output |
+|-------|----------|--------|--------|
+| Classify | `POST /ingest` | 1 cheap call | `{source_type, source_date, label}` for **user confirmation** (never silent) |
+| Extract | `POST /extract` | 1 call / source | `Ledger`, `GapReport`, `timelines` (computed view) |
+| Conflicts | `POST /conflicts` | none | record `conflicts`, perspectival `variance`, timelines |
+| Draft | `POST /draft` | draft + per-fact entailment | `ReportSection` + review queue |
+| Ask | `POST /ask` | full pipeline | Same course contract: `answer`, `tokens_used`, `cost_usd` |
+
+`/ask` keeps its request/response shape for the course assignment, but internally
+runs extract → conflicts → draft. **Token and cost sum every model call**, including
+per-fact entailment checks.
+
+Timelines are a computed `as_of` view (not stored on the ledger). Durable facts have
+no timeline. Gap report freshness: `absent` / `stale` / `current` for as_of predicates
+only (durable predicates are excluded).
 
 ## Setup
 
 ```bash
 cd ai-engineering-bootcamp-v2/week-1
-
-# Secrets live only in a local .env — never commit it.
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY (synthetic use only)
-
+cp .env.example .env   # set OPENAI_API_KEY — synthetic use only
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
-Use `.env.example` as the template. Keep real keys in `.env` only (gitignored).
 
 ## Local run
 
 ```bash
-source .venv/bin/activate
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Same app via the stage-5 alias:
-
-```bash
-uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
+# alias: uvicorn serve_stage5:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 | URL | What you get |
 |-----|----------------|
-| http://127.0.0.1:8000/ | Multi-source demo UI (`static/index.html`) — auto-loads the health-conflict fixture |
-| http://127.0.0.1:8000/health | Liveness + runtime reminder |
-| http://127.0.0.1:8000/docs | Interactive OpenAPI (`POST /ask`) |
-| http://127.0.0.1:8000/fixtures/synthetic_history_case.json | History fixture JSON |
-| http://127.0.0.1:8000/fixtures/synthetic_health_conflict_case.json | Health-conflict fixture JSON |
+| http://127.0.0.1:8000/ | Demo UI — pipeline stages visible before prose |
+| http://127.0.0.1:8000/docs | OpenAPI |
+| http://127.0.0.1:8000/health | Liveness |
 
-**How to know you’re on the current build:** the home page shows a teal badge **provenance build · multi-source**, the heading **Draft from dated sources**, fixture buttons, and source cards with `id` / `type` / `date` / `label` / `content` (not a single “Your ask” box). After a draft, **Attributed facts** and **Conflicts surfaced** panels appear under the prose.
+## Eval hygiene (fixtures & tests)
 
-## Provenance spine (why multi-source matters)
+1. **Fixture `content` contains only what a real document would contain** — no
+   `CONFLICT PLANT`, builder notes, or coaching labels in source text.
+2. **Expectations live in sibling fields** (`expected_conflicts`, `expected_facts`,
+   `expected_ledger_facts`, …) that are **never** serialized into model prompts.
+   `ask_payload()` / `FIXTURE_META_KEYS` strip them.
+3. **Tests assert detected-against-expected** (precision, recall, false positives) —
+   not “non-empty” or “looks ok.”
 
-Each input artifact is a dated `Source` (`id`, `type`, `date`, `label`, `content`). Every claim in the draft must cite a real input `source_id` and that source’s exact `source_date`. Prose should cite by **label + date** (e.g. `(School Nurse Health Report, 2024-09-12)`), never invent a tag like `user-ask`.
+## Guardrails (no clinical topic lists)
 
-**Do not** paste several documents into one blob. Keep nurse report, IEP, parent interview, etc. as separate sources so attribution and conflicts can work.
+| Check | Role |
+|-------|------|
+| `confirm_synthetic` | Synthetic-only runtime |
+| Age / derived `age_years` | Recomputation + cite the derived fact; regex backstop |
+| Provenance | Every draft statement traces to a ledger `fact_id` / real `source_id` |
+| Entailment | Per-statement cheap model call at `ENTAILMENT_TEMPERATURE=0` |
+| Conflicts | Group by subject+predicate+qualifier; temporality from vocabulary (`as_of` timelines) |
+| Extraction | `EXTRACT_TEMPERATURE=0`; predicate enum + `__unregistered__` escape; no case DOB in payload |
+| Draft | `DRAFT_TEMPERATURE=1.0` (named/configurable — not dropped to 0 in Stage 5.2) |
+| `force_bad_age` | Planted failure path still exercises the age guard |
 
-## What `/ask` does (Molly’s #1 task)
+Canonical subjects (`child`, `mother`, `father`, `school`, plus source ids for
+provenance) — never display names as keys. Names are values of `legal_name`.
 
-Accepts a typed case packet (`section`, `child`, dated `sources`) and returns a `ReportSection` where:
-
-- **`prose`** — paste-ready Background & History draft  
-- **`facts`** — every claim with required `source_id` + `source_date` + `life_stage` (+ optional `reporter`)  
-- **`conflicts`** — disagreements surfaced, not silently resolved  
-- **`coverage`** — which life stages appear (birth → present)
-
-### Guardrails (validate → retry)
-
-| Check | What it enforces |
-|-------|------------------|
-| `validate_age_consistency` | Current age must match `dob` + `evaluation_date` (`force_bad_age` plants a wrong age on attempt 0) |
-| `validate_provenance` | Every fact/conflict version cites a real input `source_id` with matching `source_date` |
-| `validate_reporter_fidelity` | Blocks positive allergy (etc.) claims cited to sources that do not positively state them |
-| Conflict soft-retry | If ≥2 sources and `conflicts` is empty, one forced re-check with a conflict-focused instruction |
-
-Prompt rules (see `system_prompt.md`) also require: never invent facts, never guess the reporter, and actively scan for name mismatches, status contradictions, classification disagreements, and omission plants (including within a single document).
-
-## Fixtures
-
-| File | Purpose |
-|------|---------|
-| `fixtures/synthetic_history_case.json` | Multi-source developmental/school packet; plants tutoring conflict + stale age in a school file |
-| `fixtures/synthetic_health_conflict_case.json` | Nurse + IEP + father interview; plants Justin/Jason name mismatch, health-plan status conflict, Undiagnosed vs known allergy |
-
-The home UI auto-loads the health-conflict fixture. Use the buttons to switch fixtures or edit sources manually.
-
-## Curl
-
-No local files required — the JSON body is inline. Works against a local server or a deployed host (set `SERVICE_URL` to your service base URL from the host dashboard; do not commit that URL here).
+## Curl examples
 
 ```bash
-# Local: SERVICE_URL=http://127.0.0.1:8000
-curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "confirm_synthetic": true,
-    "section": "history",
-    "child": {
-      "initials": "A.R.",
-      "dob": "2017-03-15",
-      "evaluation_date": "2026-07-16"
-    },
-    "sources": [
-      {
-        "id": "parent-dev-2026",
-        "type": "parent",
-        "date": "2026-06-01",
-        "label": "Parent developmental history form",
-        "content": "Pregnancy uncomplicated. Full-term vaginal birth, no NICU. Walked at 13 months. Concerns began in kindergarten with letter-sound learning."
-      },
-      {
-        "id": "teacher-2026",
-        "type": "teacher",
-        "date": "2026-06-15",
-        "label": "Current classroom teacher questionnaire",
-        "content": "Grade 4: reading fluency below peers; spelling weak; anxious when asked to read aloud."
-      }
-    ],
-    "model": "gpt-4o-mini"
-  }' | python3 -m json.tool
-```
-
-Exercise the age guardrail (plants a bad age on attempt 0, then retries) — same body plus `"force_bad_age": true`:
-
-```bash
-curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "confirm_synthetic": true,
-    "section": "history",
-    "force_bad_age": true,
-    "child": {
-      "initials": "A.R.",
-      "dob": "2017-03-15",
-      "evaluation_date": "2026-07-16"
-    },
-    "sources": [
-      {
-        "id": "parent-dev-2026",
-        "type": "parent",
-        "date": "2026-06-01",
-        "label": "Parent developmental history form",
-        "content": "Full-term birth, no NICU. Concerns began in kindergarten with letter-sound learning."
-      }
-    ],
-    "model": "gpt-4o-mini"
-  }' | python3 -m json.tool
-```
-
-Expect JSON with `answer` (`prose`, `facts`, `conflicts`, `coverage`), `tokens_used`, `model`, `latency_ms`, `cost_usd`, and `age_years_expected`.
-
-Post a full fixture file instead:
-
-```bash
+# Course contract — internally runs the full pipeline
 curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
   -H "Content-Type: application/json" \
   -d @fixtures/synthetic_history_case.json | python3 -m json.tool
 
-curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ask" \
+# Classify a raw document (confirm before adding as a Source)
+curl -s -X POST "${SERVICE_URL:-http://127.0.0.1:8000}/ingest" \
   -H "Content-Type: application/json" \
-  -d @fixtures/synthetic_health_conflict_case.json | python3 -m json.tool
+  -d '{
+    "confirm_synthetic": true,
+    "content": "School Nurse Health Report dated 2024-09-12. Known peanut allergy.",
+    "model": "gpt-4o-mini"
+  }' | python3 -m json.tool
 ```
 
-## Deploy (Render)
+## Development notes
 
-1. Create a **Web Service** from this GitHub repo (your fork, e.g. `teahop/AI-Internship`).
-2. Connect the branch Render should deploy (usually `main` after you merge).
-3. Set **Root Directory** to `ai-engineering-bootcamp-v2/week-1` (required — `requirements.txt` and `main.py` are not at the repo root).
-4. **Build command:** `pip install -r requirements.txt`
-5. **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-6. In **Environment**, add `OPENAI_API_KEY` from your key provider (same value you put in local `.env`). Do not put secrets in the repo or in this README.
-7. Deploy, then check `$SERVICE_URL/` for the **provenance build · multi-source** badge, `$SERVICE_URL/health`, and the curl examples above with `$SERVICE_URL`.
-
-If the service already exists: merge to the deploy branch, then **Manual Deploy → Deploy latest commit** (or wait for auto-deploy).
-
-Default model is `gpt-4o` when the request omits `model`. The sample fixtures use `gpt-4o-mini`.
+**Extraction payload = vocabulary + one source — never case identity.**
+Stage 5.2 removed `child` / DOB from the extract payload to stop confabulated
+dates, but that also removed knowledge that a canonical subject `child` existed,
+so the model keyed facts on source ids and conflict grouping collapsed. Stage 5.3
+separates the two roles: the payload may carry **vocabulary** (`canonical_subjects`,
+predicate list in the system prompt) without any **case data** (dob, initials,
+evaluation_date). Provenance predicates (`defers_to`) get their subject stamped
+server-side as the extracting source id.
 
 ## Smoke tests
 
 ```bash
 python test_all_stages.py
-```
-
-What that covers:
-
-- Unit: age validator + provenance/reporter fidelity validators  
-- Stages 1–4: original bootcamp teaching servers (`serve_stage1` … `serve_stage4`)  
-- `main` / stage 5: history fixture (age retry, provenance, ≥1 planted conflict)  
-- `main`: health-conflict fixture (≥3 conflicts: name, plan status, allergy class; no father-invented allergy)
-
-## Teaching demos (stages 1–4) vs product (`main`)
-
-| Piece | Role |
-|-------|------|
-| `serve_stage1.py` … `serve_stage4.py` | Original week-1 teaching stages (`question` payload) |
-| `main.py` / `serve_stage5.py` | Molly history product — `AskRequest` with dated `sources` |
-| `demo_page.py` | Streamlit runner for stages 1–4; stage 5 tab posts a fixture to `main` |
-| `static/index.html` | Primary demo UI for the product |
-
-```bash
-streamlit run demo_page.py
+python verify_stage47.py   # timelines + freshness
+python verify_stage46b.py  # as_of_date anchoring + tutoring conflict
 ```
 
 ## Project layout
 
 ```
 week-1/
-├── main.py                              # /ask + validators + cost + static home + /fixtures
-├── static/index.html                    # Multi-source home UI (provenance build)
-├── schemas.py                           # AskRequest, Source, SourcedFact, Conflict, ReportSection
-├── validators.py                        # Age, provenance, reporter fidelity, conflict retry helpers
-├── system_prompt.md                     # Cite / never invent reporter / surface conflict classes
-├── fixtures/synthetic_history_case.json
-├── fixtures/synthetic_health_conflict_case.json
-├── serve_stage1.py … serve_stage4.py    # Original week-1 teaching stages
-├── serve_stage5.py                      # Alias → main
-├── demo_page.py                         # Streamlit stage runner
+├── main.py                 # /ingest /extract /conflicts /draft /ask
+├── extract.py / conflicts.py / draft.py / ingest.py / coverage.py / derived.py
+├── schemas.py / predicates.py / validators.py / draft_validators.py
+├── provider.py             # sole OpenAI client import
+├── static/index.html       # pipeline-visible demo UI
+├── fixtures/               # synthetic cases + sibling expected_* fields
+├── extract_prompt.md / draft_prompt.md
 ├── test_all_stages.py
-├── favicon.png
-├── requirements.txt
-├── .env.example                         # Template only — copy to .env
-└── .gitignore                           # Ignores .env
+└── serve_stage1.py … serve_stage5.py
 ```
 
-## Week-1 concepts → this product
+## Teaching demos vs product
 
-| Concept | Where it lives |
-|---------|----------------|
-| Typed input | `AskRequest`: `section`, `child`, dated `sources`, `confirm_synthetic` |
-| Provenance spine | `Source` in → `SourcedFact.source_id` / required `source_date` (+ optional `reporter`) out |
-| Structured output | `ReportSection` / `SourcedFact` / `Conflict` |
-| Guardrail + retry | `validate_age_consistency`, `validate_provenance`, `validate_reporter_fidelity`, conflict soft-retry |
-| Home demo | `static/index.html` + `GET /fixtures/{name}` |
-| Model / cost | `model`, `tokens_used`, `latency_ms`, `cost_usd` |
+| Piece | Role |
+|-------|------|
+| `serve_stage1` … `serve_stage4` | Original bootcamp teaching stages (`question` payload) |
+| `main.py` / `serve_stage5.py` | Product — staged history pipeline |
+| `static/index.html` | Primary demo UI |
+| `demo_page.py` | Streamlit runner for teaching stages |
+
+```bash
+streamlit run demo_page.py
+```
