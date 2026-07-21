@@ -1,0 +1,43 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "T.N.",
+    "dob": "2016-05-20",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "parent-summary-2026",
+      "type": "parent",
+      "date": "2026-06-01",
+      "label": "Parent summary for current evaluation",
+      "content": "Parent summary dated June 2026. Per the 2024 IEP, student was in second grade. Parent also reports student struggled with reading last year. Preschool was typical."
+    },
+    {
+      "id": "teacher-2026",
+      "type": "teacher",
+      "date": "2026-06-15",
+      "label": "Current classroom teacher questionnaire",
+      "content": "Grade 4 teacher: student is currently in 4th grade. Reading fluency below grade peers."
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_facts": [],
+  "expected_ledger_facts": [],
+  "expected_as_of_anchor": {
+    "source_id": "parent-summary-2026",
+    "predicate": "grade",
+    "value": "2",
+    "source_date": "2026-06-01",
+    "as_of_date_year": "2024"
+  },
+  "expected_vague_no_anchor": {
+    "source_id": "parent-summary-2026",
+    "predicate": "reading_fluency",
+    "source_date": "2026-06-01",
+    "as_of_date_equals_source_date": true
+  },
+  "expected_grade_timeline": ["2@2024", "4@2026"],
+  "model": "gpt-4o-mini"
+}

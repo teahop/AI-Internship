@@ -1,0 +1,101 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "M.T.",
+    "dob": "2015-09-08",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "parent-rating-2026",
+      "type": "parent",
+      "date": "2026-06-02",
+      "label": "Parent behavioral rating scale",
+      "content": "Parent developmental and behavioral history. Birth: full-term, no complications, no NICU. Early milestones within expected windows. Student is currently 10 years old and in 4th grade after being retained once in 2nd grade. Parent rates inattention/distractibility as severe (6 of 7) at home during homework. Parent reports no known allergies and no daily medications. Sleep is generally adequate. Parent agrees school has provided Tier 2 reading support this year."
+    },
+    {
+      "id": "teacher-rating-2026",
+      "type": "teacher",
+      "date": "2026-06-10",
+      "label": "Teacher behavioral rating scale",
+      "content": "Grade 4 classroom teacher questionnaire. Student is 10 years old and enrolled in 4th grade; teacher notes prior retention in 2nd grade. Teacher rates inattention/distractibility as mild (2 of 7) during structured class time. Reading fluency remains below grade peers; spelling is weak. Teacher confirms Tier 2 reading support is in place this school year. No behavioral referrals this year. Teacher reports no known allergies observed at school."
+    },
+    {
+      "id": "school-cum-2026",
+      "type": "school",
+      "date": "2026-05-28",
+      "label": "School cumulative file summary",
+      "content": "Cumulative file summary prepared for current evaluation. DOB on file matches referral packet. Student is 10 years old and in 4th grade; records confirm retention in 2nd grade. Attendance is regular. Tier 2 reading intervention documented for the current school year. Health card lists no known allergies and no daily medications. No IEP or 504 plan on file."
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_facts": [
+    {
+      "statement": "Full-term birth, no complications, no NICU.",
+      "source_id": "parent-rating-2026",
+      "life_stage": "birth"
+    },
+    {
+      "statement": "Student is currently 10 years old and in 4th grade after being retained once in 2nd grade.",
+      "source_id": "parent-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Parent rates inattention/distractibility as severe (6 of 7) at home during homework.",
+      "source_id": "parent-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "No known allergies and no daily medications.",
+      "source_id": "parent-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Student is 10 years old and enrolled in 4th grade; prior retention in 2nd grade.",
+      "source_id": "teacher-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Teacher rates inattention/distractibility as mild (2 of 7) during structured class time.",
+      "source_id": "teacher-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Reading fluency remains below grade peers; spelling is weak.",
+      "source_id": "teacher-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Tier 2 reading support is in place this school year.",
+      "source_id": "teacher-rating-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Student is 10 years old and in 4th grade; records confirm retention in 2nd grade.",
+      "source_id": "school-cum-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Attendance is regular.",
+      "source_id": "school-cum-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Tier 2 reading intervention documented for the current school year.",
+      "source_id": "school-cum-2026",
+      "life_stage": "school-age"
+    },
+    {
+      "statement": "Health card lists no known allergies and no daily medications.",
+      "source_id": "school-cum-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "No IEP or 504 plan on file.",
+      "source_id": "school-cum-2026",
+      "life_stage": "current"
+    }
+  ],
+  "model": "gpt-4o-mini"
+}

@@ -1,0 +1,52 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "R.S.",
+    "dob": "2016-11-02",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "school-cum-2026",
+      "type": "school",
+      "date": "2026-05-20",
+      "label": "School cumulative file summary",
+      "content": "Cumulative file for current evaluation. Student is in 4th grade. Attendance is regular. Tier 2 reading intervention documented for the current school year. No IEP or 504 plan on file. Health card lists no known allergies."
+    },
+    {
+      "id": "teacher-2026",
+      "type": "teacher",
+      "date": "2026-06-12",
+      "label": "Classroom teacher questionnaire",
+      "content": "Grade 4 classroom teacher. Reading fluency remains below grade peers; spelling is weak. Homework completion inconsistent when writing is required. No behavioral referrals this year."
+    },
+    {
+      "id": "assess-2026",
+      "type": "assessment",
+      "date": "2026-07-08",
+      "label": "Current psycho-educational assessment notes",
+      "content": "Referral for learning concerns in reading fluency and written expression. Student presents as cooperative during testing. No prior formal special education eligibility documented in the referral packet."
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_facts": [
+    {
+      "statement": "Student is in 4th grade. Attendance is regular.",
+      "source_id": "school-cum-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Reading fluency remains below grade peers; spelling is weak.",
+      "source_id": "teacher-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "No prior formal special education eligibility documented.",
+      "source_id": "assess-2026",
+      "life_stage": "school-age"
+    }
+  ],
+  "expected_gap_life_stages_empty": ["birth", "infancy", "preschool"],
+  "model": "gpt-4o-mini"
+}

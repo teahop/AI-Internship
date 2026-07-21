@@ -1,79 +1,56 @@
-"""Molly history draft API — typed sources in, attributed ReportSection out, age/provenance guardrails, cost."""
+"""Molly history API — staged extract → conflicts → draft (+ /ask pipeline, /ingest)."""
 
 from __future__ import annotations
 
-import json
 import time
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from openai import OpenAI
 from pydantic import ValidationError
 
-from schemas import AskRequest, AskResponse, ReportSection, SourcedFact
+from conflicts import detect_disagreements_from_ledger
+from draft import draft_section
+from extract import build_ledger
+from ingest import classify_document
+from provider import DEFAULT_MODEL, ModelProvider, compute_cost_usd
+from schemas import (
+    AskRequest,
+    AskResponse,
+    ConflictsRequest,
+    ConflictsResponse,
+    DraftRequest,
+    DraftResponse,
+    ExtractRequest,
+    ExtractResponse,
+    IngestRequest,
+    IngestResponse,
+    ReportSection,
+    SourcedFact,
+)
 from validators import (
-    CONFLICT_RETRY_INSTRUCTION,
-    REPORTER_RETRY_INSTRUCTION,
     compute_age_years,
-    needs_conflict_retry,
     validate_age_consistency,
     validate_provenance,
-    validate_reporter_fidelity,
 )
 
 _DIR = Path(__file__).resolve().parent
 _FIXTURES = _DIR / "fixtures"
 load_dotenv(_DIR / ".env")
 
-SYSTEM_PROMPT = (_DIR / "system_prompt.md").read_text(encoding="utf-8")
-
 app = FastAPI(
     title="Molly History Draft (synthetic OpenAI build)",
     description=(
         "Learning/build runtime on OpenAI — synthetic data only. "
-        "Multi-source provenance spine, age/provenance/reporter validators, "
-        "conflict soft-retry. Production drafting for real cases runs on "
-        "BastionGPT (BAA), not this repo."
+        "Pipeline: /extract → /conflicts → /draft. "
+        "/ask runs that pipeline under the course-assignment contract. "
+        "/ingest classifies a raw document for user confirmation (never silent). "
+        "Production drafting for real cases runs on BastionGPT (BAA), not this repo."
     ),
 )
-client = OpenAI()
-
-DEFAULT_MODEL = "gpt-4o"
-
-MODEL_PRICES_PER_1K: dict[str, tuple[float, float]] = {
-    "gpt-4o": (0.0025, 0.01),
-    "gpt-4o-mini": (0.00015, 0.0006),
-    "o3-mini": (0.0011, 0.0044),
-}
-
-
-
-def compute_cost_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    prices = MODEL_PRICES_PER_1K.get(model, MODEL_PRICES_PER_1K[DEFAULT_MODEL])
-    input_per_1k, output_per_1k = prices
-    return (prompt_tokens / 1000 * input_per_1k) + (completion_tokens / 1000 * output_per_1k)
-
-
-def _user_payload(body: AskRequest, extra_instruction: str | None = None) -> str:
-    """Serialize the typed case packet for the model (no real PHI in this build)."""
-
-    expected_age = compute_age_years(body.child.dob, body.child.evaluation_date)
-    instruction = (
-        f"State age only as {expected_age} years if you mention age. "
-        "Ignore any other ages appearing inside sources."
-    )
-    if extra_instruction:
-        instruction = f"{instruction}\n\n{extra_instruction}"
-    packet = {
-        "section": body.section,
-        "child": body.child.model_dump(),
-        "expected_age_years": expected_age,
-        "instruction": instruction,
-        "sources": [s.model_dump() for s in body.sources],
-    }
-    return json.dumps(packet, indent=2)
+provider = ModelProvider()
 
 
 def _plant_bad_age_section(body: AskRequest) -> ReportSection:
@@ -101,29 +78,59 @@ def _plant_bad_age_section(body: AskRequest) -> ReportSection:
     )
 
 
-def call_model_structured(
-    body: AskRequest,
-    model: str,
-    *,
-    extra_instruction: str | None = None,
-) -> tuple[ReportSection, int, int, int]:
-    completion = client.chat.completions.parse(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _user_payload(body, extra_instruction)},
-        ],
-        response_format=ReportSection,
-    )
-    parsed = completion.choices[0].message.parsed
-    if parsed is None:
-        raise ValueError("Model returned no parseable ReportSection")
+def _run_pipeline(body: AskRequest, model: str) -> tuple[ReportSection, int, float, int]:
+    """
+    extract → conflicts → draft.
 
-    usage = completion.usage
-    total = usage.total_tokens if usage else 0
-    prompt_tokens = usage.prompt_tokens if usage else 0
-    completion_tokens = usage.completion_tokens if usage else 0
-    return parsed, total, prompt_tokens, completion_tokens
+    Returns (section, tokens_used, cost_usd, age_years_expected).
+    Token/cost sum every model call (extraction + draft + entailment).
+    """
+
+    (
+        ledger,
+        tokens_by_source,
+        extract_prompt,
+        extract_completion,
+        _pred_review,
+        _subj_review,
+        _gap,
+        _timelines,
+    ) = build_ledger(
+        provider,
+        child=body.child,
+        sources=body.sources,
+        model=model,
+    )
+    extract_tokens = sum(tokens_by_source.values())
+    extract_cost = compute_cost_usd(model, extract_prompt, extract_completion)
+
+    conflicts, variance, _tls, _, _ = detect_disagreements_from_ledger(ledger)
+
+    draft_body = DraftRequest(
+        confirm_synthetic=True,
+        section=body.section,
+        ledger=ledger,
+        conflicts=conflicts,
+        variance=variance,
+        model=model,
+        entailment_model="gpt-4o-mini",
+    )
+    draft_resp = draft_section(provider, draft_body)
+    if not draft_resp.section_populated or draft_resp.answer is None:
+        raise ValueError(draft_resp.empty_reason or "Draft section not populated")
+
+    tokens_used = extract_tokens + draft_resp.tokens_used
+    cost_usd = extract_cost + draft_resp.cost_usd
+
+    expected_age = validate_age_consistency(
+        draft_resp.answer,
+        dob=body.child.dob,
+        evaluation_date=body.child.evaluation_date,
+        ledger=ledger,
+    )
+    validate_provenance(draft_resp.answer, body.sources)
+
+    return draft_resp.answer, tokens_used, cost_usd, expected_age
 
 
 @app.get("/")
@@ -157,26 +164,140 @@ def health() -> dict[str, str]:
         "status": "ok",
         "runtime": "openai-synthetic-only",
         "production": "bastiongpt-baa-not-this-repo",
+        "pipeline": "extract→conflicts→draft",
     }
+
+
+@app.post("/ingest")
+def ingest(body: IngestRequest) -> IngestResponse:
+    """
+    Classify one raw document → {source_type, source_date, label} for confirmation.
+
+    Never silent: suggestion is returned; caller must confirm before the document
+    enters the case packet. A wrong date is a provenance failure.
+    """
+
+    model = body.model or "gpt-4o-mini"
+    start = time.perf_counter()
+    try:
+        suggestion, tokens, prompt_tok, completion_tok = classify_document(
+            provider,
+            content=body.content,
+            model=model,
+            today=date.today().isoformat(),
+        )
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=f"Ingest failed: {exc}") from exc
+
+    return IngestResponse(
+        suggestion=suggestion,
+        tokens_used=tokens,
+        model=model,
+        latency_ms=int((time.perf_counter() - start) * 1000),
+        cost_usd=round(compute_cost_usd(model, prompt_tok, completion_tok), 6),
+    )
+
+
+@app.post("/extract")
+def extract(body: ExtractRequest) -> ExtractResponse:
+    """
+    Build a case Ledger: one model call per source, atomic facts only.
+
+    Returns ledger + gap_report + timelines (computed view). Nothing persisted.
+    """
+
+    model = body.model or DEFAULT_MODEL
+    start = time.perf_counter()
+    try:
+        (
+            ledger,
+            tokens_by_source,
+            prompt_tokens,
+            completion_tokens,
+            review,
+            subject_review,
+            gap_report,
+            timelines,
+        ) = build_ledger(
+            provider,
+            child=body.child,
+            sources=body.sources,
+            model=model,
+        )
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=f"Extraction failed: {exc}") from exc
+
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    tokens_used = sum(tokens_by_source.values())
+    cost_usd = compute_cost_usd(model, prompt_tokens, completion_tokens)
+
+    return ExtractResponse(
+        ledger=ledger,
+        gap_report=gap_report,
+        timelines=timelines,
+        tokens_used=tokens_used,
+        model=model,
+        latency_ms=latency_ms,
+        cost_usd=round(cost_usd, 6),
+        tokens_by_source=tokens_by_source,
+        predicates_for_review=review,
+        subjects_for_review=subject_review,
+    )
+
+
+@app.post("/conflicts")
+def conflicts(body: ConflictsRequest) -> ConflictsResponse:
+    """
+    Ledger in → record conflicts + perspectival variance + timelines out.
+
+    Deterministic: no model call, no domain keywords. Nothing is persisted.
+    """
+
+    conflict_list, variance_list, timelines, review, subject_review = (
+        detect_disagreements_from_ledger(body.ledger)
+    )
+    return ConflictsResponse(
+        conflicts=conflict_list,
+        variance=variance_list,
+        timelines=timelines,
+        predicates_for_review=review,
+        subjects_for_review=subject_review,
+    )
+
+
+@app.post("/draft")
+def draft(body: DraftRequest) -> DraftResponse:
+    """
+    Settled ledger + must-mention conflicts → section prose + review work queue.
+
+    Drafter has no discretion over facts/conflicts. Empty ledger for the section
+    returns section_populated=False (not a thin padded draft). Nothing persisted.
+    """
+
+    start = time.perf_counter()
+    try:
+        response = draft_section(provider, body)
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=f"Draft failed: {exc}") from exc
+
+    response.latency_ms = int((time.perf_counter() - start) * 1000)
+    return response
 
 
 @app.post("/ask")
 def ask(body: AskRequest) -> AskResponse:
     """
-    Draft Background & History with source-attributed facts.
+    Course-assignment contract: AskRequest in → answer + tokens_used + cost_usd.
 
-    Guard: confirm_synthetic must be true (enforced by schema Literal[True]).
-    Validators: age, provenance (source_id/date), and one conflict re-check on multi-source empties.
+    Internally runs extract → conflicts → draft. Token/cost sum every model call
+    in the pipeline (including per-fact entailment). Nothing persisted.
     """
 
     model = body.model or DEFAULT_MODEL
     last_error: str | None = None
-    tokens_used = prompt_tokens = completion_tokens = 0
-    extra_instruction: str | None = None
-    conflict_retried = False
 
-    # force_bad_age burns attempt 0; conflict re-check may burn another; keep headroom.
-    max_attempts = 4 if body.force_bad_age else 3
+    # force_bad_age burns attempt 0; keep headroom for age/provenance retries.
+    max_attempts = 3 if body.force_bad_age else 2
 
     for attempt in range(max_attempts):
         try:
@@ -184,30 +305,18 @@ def ask(body: AskRequest) -> AskResponse:
 
             if body.force_bad_age and attempt == 0:
                 section = _plant_bad_age_section(body)
-                # No OpenAI spend on the planted failure — still exercise the guardrail path.
-                tokens_used = prompt_tokens = completion_tokens = 0
-            else:
-                section, tokens_used, prompt_tokens, completion_tokens = call_model_structured(
-                    body, model, extra_instruction=extra_instruction
+                tokens_used = 0
+                cost_usd = 0.0
+                expected_age = validate_age_consistency(
+                    section,
+                    dob=body.child.dob,
+                    evaluation_date=body.child.evaluation_date,
                 )
-
-            expected_age = validate_age_consistency(
-                section,
-                dob=body.child.dob,
-                evaluation_date=body.child.evaluation_date,
-            )
-            validate_provenance(section, body.sources)
-            validate_reporter_fidelity(section, body.sources)
-
-            if needs_conflict_retry(section, body.sources) and not conflict_retried:
-                conflict_retried = True
-                extra_instruction = CONFLICT_RETRY_INSTRUCTION
-                last_error = "multi-source draft returned no conflicts; retrying with conflict check"
-                continue
+                validate_provenance(section, body.sources)
+            else:
+                section, tokens_used, cost_usd, expected_age = _run_pipeline(body, model)
 
             latency_ms = int((time.perf_counter() - start) * 1000)
-            cost_usd = compute_cost_usd(model, prompt_tokens, completion_tokens)
-
             return AskResponse(
                 answer=section,
                 tokens_used=tokens_used,
@@ -218,8 +327,6 @@ def ask(body: AskRequest) -> AskResponse:
             )
         except (ValidationError, ValueError) as exc:
             last_error = str(exc)
-            if "Reporter fidelity failed" in last_error:
-                extra_instruction = REPORTER_RETRY_INSTRUCTION
             continue
 
     raise HTTPException(

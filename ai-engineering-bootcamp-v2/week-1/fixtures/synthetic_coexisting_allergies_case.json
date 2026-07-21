@@ -1,0 +1,48 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "K.L.",
+    "dob": "2016-01-10",
+    "evaluation_date": "2026-07-16"
+  },
+  "sources": [
+    {
+      "id": "nurse-multi-allergy-2026",
+      "type": "school",
+      "date": "2026-05-01",
+      "label": "School Nurse Health Report",
+      "content": "Health card review. Nurse documents a known IgE-mediated allergy to peanuts; epinephrine auto-injector kept in the health office. Separately, dairy sensitivity is listed as Undiagnosed. No other allergens noted. Attendance regular."
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_facts": [
+    {
+      "statement": "Known allergy to peanuts.",
+      "source_id": "nurse-multi-allergy-2026",
+      "life_stage": "current"
+    },
+    {
+      "statement": "Dairy sensitivity listed as Undiagnosed.",
+      "source_id": "nurse-multi-allergy-2026",
+      "life_stage": "current"
+    }
+  ],
+  "expected_ledger_facts": [
+    {
+      "source_id": "nurse-multi-allergy-2026",
+      "predicate": "allergy_status",
+      "value": "known",
+      "assertion": "asserted",
+      "qualifier": "peanut"
+    },
+    {
+      "source_id": "nurse-multi-allergy-2026",
+      "predicate": "allergy_status",
+      "value": "undiagnosed",
+      "assertion": "asserted",
+      "qualifier": "dairy"
+    }
+  ],
+  "model": "gpt-4o-mini"
+}
