@@ -127,7 +127,7 @@ Stage 5.2 removed `child` / DOB from the extract payload to stop confabulated
 dates, but that also removed knowledge that a canonical subject `child` existed,
 so the model keyed facts on source ids and conflict grouping collapsed. Stage 5.3
 separates the two roles: the payload may carry **vocabulary** (`canonical_subjects`,
-predicate list in the system prompt) without any **case data** (dob, initials,
+predicate list in the system prompt) without any **case data** (dob, name,
 evaluation_date). Provenance predicates (`defers_to`) get their subject stamped
 server-side as the extracting source id.
 

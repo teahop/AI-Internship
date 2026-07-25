@@ -2,9 +2,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "R.S.",
     "dob": "2016-11-02",
-    "evaluation_date": "2026-07-16"
+    "evaluation_date": "2026-07-16",
+    "name": "Riley Santos"
   },
   "sources": [
     {
@@ -47,6 +47,10 @@
       "life_stage": "school-age"
     }
   ],
-  "expected_gap_life_stages_empty": ["birth", "infancy", "preschool"],
+  "expected_gap_life_stages_empty": [
+    "birth",
+    "infancy",
+    "preschool"
+  ],
   "model": "gpt-4o-mini"
 }

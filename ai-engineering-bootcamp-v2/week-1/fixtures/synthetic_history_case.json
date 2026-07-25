@@ -2,9 +2,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "A.R.",
     "dob": "2017-03-15",
-    "evaluation_date": "2026-07-16"
+    "evaluation_date": "2026-07-16",
+    "name": "Alex Rivera"
   },
   "sources": [
     {

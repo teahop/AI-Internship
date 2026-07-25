@@ -187,8 +187,8 @@
 
     <div class="fields">
       <div>
-        <label for="initials">Initials</label>
-        <input id="initials" type="text" value="" placeholder="e.g. A.R." autocomplete="off" />
+        <label for="childName">Name</label>
+        <input id="childName" type="text" value="" placeholder="e.g. Emma Rose Callahan" autocomplete="off" />
       </div>
       <div>
         <label for="dob">Date of birth</label>
@@ -264,7 +264,7 @@
     const SOURCE_TYPES = [
       "assessment", "school", "parent", "teacher", "observation", "prior_eval", "other"
     ];
-    const initialsEl = document.getElementById("initials");
+    const childNameEl = document.getElementById("childName");
     const dobEl = document.getElementById("dob");
     const evalEl = document.getElementById("evalDate");
     const sourcesEl = document.getElementById("sources");
@@ -351,7 +351,7 @@
     }
     function setChild(child) {
       if (!child) return;
-      initialsEl.value = child.initials || "";
+      childNameEl.value = child.name || "";
       dobEl.value = child.dob || "";
       evalEl.value = child.evaluation_date || "";
     }
@@ -372,7 +372,7 @@
       lastIngest = null;
     }
     function clearSession() {
-      initialsEl.value = "";
+      childNameEl.value = "";
       dobEl.value = "";
       evalEl.value = "";
       clearSources();
@@ -439,14 +439,14 @@
     }
 
     function caseBody() {
-      const initials = (initialsEl.value || "A.R.").trim();
+      const name = (childNameEl.value || "Alex Rivera").trim();
       const dob = dobEl.value;
       const evaluation_date = evalEl.value;
       if (!dob || !evaluation_date) throw new Error("Pick a DOB and evaluation date.");
       return {
         confirm_synthetic: true,
         section: "history",
-        child: { initials, dob, evaluation_date },
+        child: { name, dob, evaluation_date },
         sources: collectSources(),
         model: "gpt-4o-mini",
       };

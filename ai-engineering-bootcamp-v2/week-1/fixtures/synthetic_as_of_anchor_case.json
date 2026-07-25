@@ -2,9 +2,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "T.N.",
     "dob": "2016-05-20",
-    "evaluation_date": "2026-07-16"
+    "evaluation_date": "2026-07-16",
+    "name": "Taylor Nguyen"
   },
   "sources": [
     {
@@ -38,6 +38,9 @@
     "source_date": "2026-06-01",
     "as_of_date_equals_source_date": true
   },
-  "expected_grade_timeline": ["2@2024", "4@2026"],
+  "expected_grade_timeline": [
+    "2@2024",
+    "4@2026"
+  ],
   "model": "gpt-4o-mini"
 }

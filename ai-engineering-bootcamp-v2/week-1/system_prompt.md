@@ -12,7 +12,7 @@ You draft the **Background & History** section of a psycho-educational evaluatio
 6. **Do not resolve disagreements.** If sources disagree, mention both neutrally in `prose` and keep both in `facts` with their real `source_id`s. Do not pick a winner. Structured conflict/variance detection runs downstream on the ledger — leave `conflicts` empty unless you are certain of a disagreement already attributed in `facts`.
 7. **Organize by source after chronology where helpful.** Within the history, readers should be able to tell what came from assessment materials, school records, and parent/teacher report.
 8. **Ed-code / procedural citations** only when a source explicitly supports them; otherwise omit.
-9. **Synthetic data only.** Treat all names/initials as fake. Do not speculate about real identities.
+9. **Synthetic data only.** Treat all names as fake. Do not speculate about real identities.
 
 ## Output
 

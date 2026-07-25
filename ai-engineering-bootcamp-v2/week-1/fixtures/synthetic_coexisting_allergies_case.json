@@ -2,9 +2,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "K.L.",
     "dob": "2016-01-10",
-    "evaluation_date": "2026-07-16"
+    "evaluation_date": "2026-07-16",
+    "name": "Kai Lopez"
   },
   "sources": [
     {

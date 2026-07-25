@@ -6,7 +6,7 @@
 {
   "confirm_synthetic": true,
   "section": "history",
-  "child": { "initials": "A.R.", "dob": "YYYY-MM-DD", "evaluation_date": "YYYY-MM-DD" },
+  "child": { "name": "Alex Rivera", "dob": "YYYY-MM-DD", "evaluation_date": "YYYY-MM-DD" },
   "sources": [
     { "id": "…", "type": "…", "date": "YYYY-MM-DD", "label": "…", "content": "…" }
   ]
@@ -14,7 +14,7 @@
 ```
 
 - `confirm_synthetic` must be `true` (synthetic / de-identified only).
-- `child.initials` — synthetic initials only, never a full name.
+- `child.name` — synthetic full name (matches content), never a real child.
 - `sources[].type` — one of: `assessment`, `school`, `parent`, `teacher`, `observation`, `prior_eval`, `other`.
 - `sources[].id` — stable; referenced by facts/conflicts.
 - `sources[].date` — that document’s own date (ISO), not the case DOB.

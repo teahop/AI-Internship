@@ -666,7 +666,7 @@ def test_normalize_unit() -> bool:
         label="Parent form",
         content=passage,
     )
-    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
     fact = draft_to_fact(long_draft, fact_id="f_parent-dev-2026_001", source=source, child=child)
     ok &= check(
         "extract write-time cap",
@@ -693,8 +693,8 @@ def test_extract_isolation_unit() -> bool:
         )
         ok &= check(
             f"no case meta {source.id}",
-            "child_initials" not in payload and '"dob"' not in payload,
-            f"{source.id} payload must not include child_initials/dob keys",
+            "child_name" not in payload and "child_initials" not in payload and '"dob"' not in payload,
+            f"{source.id} payload must not include child name/dob keys",
         )
         ok &= check(
             f"subject vocab {source.id}",
@@ -769,7 +769,7 @@ def test_ledger_schema_unit() -> bool:
 
     print("\n=== Schema unit: Fact / Ledger ===")
     ok = True
-    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
     source = Source(
         id="parent-dev-2026",
         type="parent",
@@ -960,7 +960,7 @@ def test_age_validator_unit() -> bool:
     expected = compute_age_years(child["dob"], child["evaluation_date"])
     bad = ReportSection(
         section="history",
-        prose=f"{child['initials']} is a {expected + 3}-year-old student.",
+        prose=f"{child['name']} is a {expected + 3}-year-old student.",
         facts=[
             SourcedFact(
                 statement=f"Student is {expected + 3} years old.",
@@ -1399,7 +1399,7 @@ def test_subject_stamping_and_grouping_unit() -> bool:
     from predicates import CANONICAL_SUBJECTS, ExtractSubjectName, is_provenance_predicate
 
     ok = True
-    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    child = Child(name="Jordan Miles", dob="2015-04-22", evaluation_date="2026-07-16")
     nurse = Source(
         id="nurse-health-2024",
         type="school",
@@ -1761,7 +1761,7 @@ def test_case_manifest_unit() -> bool:
     child, sources, keys = load_case_manifest(FIXTURE_001_MANIFEST_PATH)
     ok &= check(
         "child validates",
-        child.initials == man["child"]["initials"] and child.dob == man["child"]["dob"],
+        child.name == man["child"]["name"] and child.dob == man["child"]["dob"],
         f"child={child.model_dump()}",
     )
     ok &= check(
@@ -1855,7 +1855,7 @@ def test_case_accumulation_unit() -> bool:
     from conflicts import detect_disagreements
 
     ok = True
-    child = Child(initials="E.C.", dob="2010-03-22", evaluation_date="2025-07-11")
+    child = Child(name="Emma Rose Callahan", dob="2010-03-22", evaluation_date="2025-07-11")
     doc_26 = Source(
         id="doc_26",
         type="prior_eval",
@@ -2034,7 +2034,7 @@ def test_incremental_extract_unit() -> bool:
     from validators import compute_age_years
 
     ok = True
-    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    child = Child(name="Jordan Miles", dob="2015-04-22", evaluation_date="2026-07-16")
     nurse = Source(
         id="nurse-health-2024",
         type="school",
@@ -2239,7 +2239,7 @@ def test_chunking_unit() -> bool:
     )
 
     # Dedupe across chunk extractions.
-    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
     source = Source(
         id="parent-long-2026",
         type="parent",
@@ -2425,7 +2425,7 @@ def test_score_report_triage_unit() -> bool:
     from extract import build_ledger
 
     ok = True
-    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    child = Child(name="Jordan Miles", dob="2015-04-22", evaluation_date="2026-07-16")
     narrative = Source(
         id="nurse-health-2024",
         type="school",
@@ -2712,7 +2712,7 @@ def test_derived_and_coverage_unit() -> bool:
     from schemas import Child, Fact, Source
 
     ok = True
-    child = Child(initials="K.L.", dob="2016-08-10", evaluation_date="2026-07-16")
+    child = Child(name="Kai Lopez", dob="2016-08-10", evaluation_date="2026-07-16")
     expected_age = compute_age_years(child.dob, child.evaluation_date)
 
     age = build_age_years_fact(child, fact_id="f_age")
@@ -2897,7 +2897,7 @@ def test_stage45_verification() -> bool:
 
     # --- Draft cites derived age ---
     print("\n--- Draft cites derived age ---")
-    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
     expected_age = compute_age_years(child.dob, child.evaluation_date)
     from derived import build_age_years_fact, build_request_dob_fact
 
@@ -3128,7 +3128,7 @@ def test_draft_validators_unit() -> bool:
     ok &= check("terminology review", len(flags) == 1 and flags[0].kind == "terminology", f"flags={flags}")
 
     empty_ledger = Ledger(
-        child=Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16"),
+        child=Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16"),
         ledger_version="1",
         built_at="2026-07-16T00:00:00Z",
         sources=[],
@@ -3175,7 +3175,7 @@ def test_draft_validators_unit() -> bool:
         confidence="stated",
     )
     ledger = Ledger(
-        child=Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16"),
+        child=Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16"),
         ledger_version="1",
         built_at="2026-07-16T00:00:00Z",
         sources=[
@@ -3297,7 +3297,7 @@ def test_draft_smoke() -> bool:
 
     load_dotenv(WORKDIR / ".env")
     print("\n=== /draft smoke (health-like mini ledger) ===")
-    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    child = Child(name="Jordan Miles", dob="2015-04-22", evaluation_date="2026-07-16")
     sources = [
         Source(
             id="nurse",

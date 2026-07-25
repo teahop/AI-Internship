@@ -61,12 +61,12 @@ def _plant_bad_age_section(body: AskRequest) -> ReportSection:
     return ReportSection(
         section="history",
         prose=(
-            f"{body.child.initials} is a {wrong_age}-year-old student referred for "
+            f"{body.child.name} is a {wrong_age}-year-old student referred for "
             "evaluation of reading concerns. (PLANTED BAD AGE FOR VALIDATOR DEMO.)"
         ),
         facts=[
             SourcedFact(
-                statement=f"{body.child.initials} is {wrong_age} years old.",
+                statement=f"{body.child.name} is {wrong_age} years old.",
                 source_id=source.id,
                 source_date=source.date,
                 life_stage="current",

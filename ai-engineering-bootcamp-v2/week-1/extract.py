@@ -169,7 +169,7 @@ def _extraction_user_payload(source: Source) -> str:
     """
     Serialize exactly one source plus subject vocabulary.
 
-    Vocabulary (canonical subject names) is not case data — no dob, initials,
+    Vocabulary (canonical subject names) is not case data — no dob, name,
     or evaluation_date. Keeps entity keys available without leaking identity.
     """
 
@@ -271,7 +271,7 @@ def draft_to_fact(
     source: Source,
     child: Child,
 ) -> Fact:
-    del child  # Subject no longer needs initials for canonicalization.
+    del child  # Subject no longer needs child.name for canonicalization.
     predicate = _resolve_predicate_name(draft)
     value = normalize_value(predicate, draft.value, draft.value_text)
     if not value or value.strip().lower() == "null":

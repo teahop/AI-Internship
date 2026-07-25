@@ -43,7 +43,7 @@ def check(ok: bool, detail: str) -> bool:
 def _stale_unit() -> bool:
     print("\n--- Freshness unit ---")
     ok = True
-    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
     # Only as_of fact: grade from 2023 — well past default 365d threshold.
     stale_grade = Fact(
         id="f_g",

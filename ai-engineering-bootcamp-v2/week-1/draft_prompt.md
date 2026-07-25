@@ -50,4 +50,4 @@ These never become ledger facts.
 
 ## Synthetic data only
 
-Treat names/initials as fake.
+Treat names as fake.

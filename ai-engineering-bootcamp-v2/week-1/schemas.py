@@ -32,9 +32,9 @@ FreshnessState = Literal["absent", "stale", "current"]
 
 
 class Child(BaseModel):
-    """Identity for age math only — use initials / synthetic IDs, never real names here."""
+    """Case identity for age math — synthetic full name only, never a real child."""
 
-    initials: str = Field(description="Synthetic initials only, e.g. J.D.")
+    name: str = Field(description="Synthetic full name, e.g. Emma Rose Callahan")
     dob: str = Field(description="ISO date YYYY-MM-DD")
     evaluation_date: str = Field(description="ISO date YYYY-MM-DD of this evaluation")
 

@@ -3,9 +3,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "E.C.",
     "dob": "2010-03-22",
-    "evaluation_date": "2025-07-11"
+    "evaluation_date": "2025-07-11",
+    "name": "Emma Rose Callahan"
   },
   "_comment": "Per-file case for the incremental /extract. Each file is extracted once and merged into an accumulating ledger (Stage 6). Content source of truth: fixture_001_ask.json. Keys derived from source content + predicates.py, never from a finished report (§10/§14.3). Arrival order = packet collection order (doc_NN).",
   "arrival_order": [

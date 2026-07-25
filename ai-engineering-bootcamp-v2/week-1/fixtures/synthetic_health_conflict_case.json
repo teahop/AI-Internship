@@ -2,9 +2,9 @@
   "confirm_synthetic": true,
   "section": "history",
   "child": {
-    "initials": "J.M.",
     "dob": "2015-04-22",
-    "evaluation_date": "2026-07-16"
+    "evaluation_date": "2026-07-16",
+    "name": "Jordan Miles"
   },
   "sources": [
     {
@@ -32,7 +32,10 @@
   "expected_conflicts": [
     {
       "topic": "student name",
-      "source_ids": ["nurse-health-2024", "iep-health-2025"]
+      "source_ids": [
+        "nurse-health-2024",
+        "iep-health-2025"
+      ]
     }
   ],
   "expected_facts": [
