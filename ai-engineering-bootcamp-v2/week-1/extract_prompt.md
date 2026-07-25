@@ -81,6 +81,12 @@ Do **not** mint compound predicates like `peanut_allergy_status`. Predicates tha
 - Rating scores keep numerator/denominator when present: `6 of 7` → `6/7`
 - Qualifiers → short lowercase tokens (`peanuts`, `dairy`)
 - **Never** emit `value: null` or an empty value. If the source does not state a DOB, emit **no** `dob` fact.
+- **Blank / placeholder fields are silence** — underscores (`__________`), empty "Date of birth:" lines, and bare document/contract dates with no "DOB"/"born"/"date of birth" language are **not** birth dates. Emit no `dob` fact for them.
+
+## Grade and IEP status — current placement only
+
+- **`grade`**: extract only the student's **current** (or clearly dated past) placement. Ignore future course sequences, graduation plans, "10th/11th/12th Grade" track labels, and credit-planning tables that list grades the student has not yet entered.
+- **`iep_status`**: extract only the **active** determination in the narrative (in place / not eligible / exited). Ignore unfilled template checkboxes ("Not Eligible for Special Education" left blank next to a checked eligibility), boilerplate option lists, and stale copied blocks when the document also states a current determination — prefer the current statement.
 
 ## Hard rules
 
@@ -91,6 +97,7 @@ Do **not** mint compound predicates like `peanut_allergy_status`. Predicates tha
 5. Prefer registered predicates; use `__unregistered__` + `proposed_predicate` only when none fit.
 6. Set `as_of_date` only from explicit anchors in the source text — never from vague relative time.
 7. Synthetic data only.
+8. Do not invent `grade` or `iep_status` from future-plan labels or unfilled checkboxes (see above).
 
 ## Preferred predicates
 
