@@ -77,6 +77,7 @@ AS_OF_ANCHOR_FIXTURE_PATH = FIXTURES / "synthetic_as_of_anchor_case.json"
 
 DOB_CONFLICT_FIXTURE_PATH = FIXTURES / "synthetic_dob_conflict_case.json"
 MISSING_BIRTH_FIXTURE_PATH = FIXTURES / "synthetic_missing_birth_infancy_case.json"
+FIXTURE_001_MANIFEST_PATH = FIXTURES / "fixture_001" / "manifest.json"
 
 _STOPWORDS = frozenset(
     "a an the and or of to for in on at is are was were be been being "
@@ -140,6 +141,20 @@ def check(name: str, ok: bool, detail: str) -> bool:
 
 def _load_fixture(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_case_manifest(manifest_path: Path) -> tuple[Child, list[Source], dict]:
+    """Return (child, sources-in-arrival-order-with-doc_class, per_file_keys_by_id)."""
+
+    man = json.loads(manifest_path.read_text(encoding="utf-8"))
+    child = Child.model_validate(man["child"])
+    sources: list[Source] = []
+    keys: dict = {}
+    for f in man["files"]:
+        fx = json.loads((manifest_path.parent / f["fixture"]).read_text(encoding="utf-8"))
+        sources.append(Source.model_validate(fx["sources"][0]))
+        keys[f["id"]] = {k: fx[k] for k in fx if k in FIXTURE_META_KEYS}
+    return child, sources, keys
 
 
 def ask_payload(fixture: dict, **overrides) -> dict:
@@ -1727,6 +1742,286 @@ def test_stage0_via_extract_conflicts() -> bool:
     return ok
 
 
+def test_case_manifest_unit() -> bool:
+    """
+    Stage 7: fixture_001 per-file case validates structurally (no API).
+    Manifest drives arrival order; Source.model_validate covers doc_class.
+    """
+
+    print("\n=== Stage 7 unit: fixture_001 case manifest ===")
+    ok = True
+    man = _load_fixture(FIXTURE_001_MANIFEST_PATH)
+    file_ids = [f["id"] for f in man["files"]]
+    ok &= check(
+        "arrival_order",
+        man["arrival_order"] == file_ids,
+        f"arrival_order={man['arrival_order'][:3]}... vs files={file_ids[:3]}...",
+    )
+
+    child, sources, keys = load_case_manifest(FIXTURE_001_MANIFEST_PATH)
+    ok &= check(
+        "child validates",
+        child.initials == man["child"]["initials"] and child.dob == man["child"]["dob"],
+        f"child={child.model_dump()}",
+    )
+    ok &= check(
+        "source count",
+        len(sources) == len(man["files"]),
+        f"sources={len(sources)} files={len(man['files'])}",
+    )
+    for f, src in zip(man["files"], sources, strict=True):
+        fx_path = FIXTURE_001_MANIFEST_PATH.parent / f["fixture"]
+        ok &= check(
+            f"{f['id']}:exists",
+            fx_path.is_file(),
+            f"{fx_path.name} exists",
+        )
+        ok &= check(
+            f"{f['id']}:id",
+            src.id == f["id"],
+            f"source.id={src.id} file.id={f['id']}",
+        )
+        ok &= check(
+            f"{f['id']}:doc_class",
+            src.doc_class == f["doc_class"],
+            f"source={src.doc_class} manifest={f['doc_class']}",
+        )
+
+    narrative_ids = [f["id"] for f in man["files"] if f["doc_class"] == "narrative"]
+    score_ids = [f["id"] for f in man["files"] if f["doc_class"] == "score_report"]
+    for sid in score_ids:
+        k = keys[sid]
+        ok &= check(
+            f"{sid}:empty_score_keys",
+            not (k.get("expected_ledger_facts") or []) and not (k.get("expected_facts") or []),
+            f"ledger={len(k.get('expected_ledger_facts') or [])} "
+            f"facts={len(k.get('expected_facts') or [])}",
+        )
+    for sid in narrative_ids:
+        k = keys[sid]
+        ok &= check(
+            f"{sid}:nonempty_narrative_keys",
+            bool(k.get("expected_ledger_facts")),
+            f"ledger={len(k.get('expected_ledger_facts') or [])}",
+        )
+
+    sample_path = FIXTURE_001_MANIFEST_PATH.parent / "doc_26.json"
+    sample = _load_fixture(sample_path)
+    present_meta = FIXTURE_META_KEYS & sample.keys()
+    ok &= check(
+        "sample has meta",
+        bool(present_meta),
+        f"meta={sorted(present_meta)}",
+    )
+    stripped = ask_payload(sample)
+    ok &= check(
+        "ask_payload strips meta",
+        FIXTURE_META_KEYS.isdisjoint(stripped.keys()),
+        f"stripped keys still have {sorted(FIXTURE_META_KEYS & stripped.keys())}",
+    )
+
+    ok &= check(
+        "expected_conflicts empty",
+        man.get("expected_conflicts") == [],
+        f"expected_conflicts={man.get('expected_conflicts')}",
+    )
+    counts = man.get("counts") or {}
+    ok &= check(
+        "counts.sources_total",
+        counts.get("sources_total") == len(man["files"]),
+        f"sources_total={counts.get('sources_total')} files={len(man['files'])}",
+    )
+    ok &= check(
+        "counts.narrative",
+        counts.get("narrative") == 9 == len(narrative_ids),
+        f"counts.narrative={counts.get('narrative')} actual={len(narrative_ids)}",
+    )
+    ok &= check(
+        "counts.score_report",
+        counts.get("score_report") == 15 == len(score_ids),
+        f"counts.score_report={counts.get('score_report')} actual={len(score_ids)}",
+    )
+    return ok
+
+
+def test_case_accumulation_unit() -> bool:
+    """
+    Stage 7 headline: two agreeing E.C. narrative sources accumulate without
+    a record conflict; re-merge is idempotent. Conflict-forms-after-second is
+    covered by test_incremental_extract_unit.
+    """
+
+    print("\n=== Stage 7 unit: case accumulation (agreeing docs) ===")
+    from conflicts import detect_disagreements
+
+    ok = True
+    child = Child(initials="E.C.", dob="2010-03-22", evaluation_date="2025-07-11")
+    doc_26 = Source(
+        id="doc_26",
+        type="prior_eval",
+        date="2013-09-10",
+        label="Prior early childhood diagnostic assessment (age 3)",
+        content="walking at 19 months; DOB 3/22/10",
+        doc_class="narrative",
+    )
+    doc_25 = Source(
+        id="doc_25",
+        type="school",
+        date="2019-05-29",
+        label="IEP — Fairhaven initial (4th grade)",
+        content="walking at about 19 mos; Date of Birth: 3/22/10",
+        doc_class="narrative",
+    )
+    walked_26 = Fact(
+        id=fact_id_for_source(doc_26.id, 1),
+        subject="child",
+        predicate="walked_age_months",
+        value="19",
+        value_text="she was walking at 19 months of age",
+        qualifier=None,
+        assertion="asserted",
+        source_id=doc_26.id,
+        source_date=doc_26.date,
+        reporter=None,
+        life_stage="infancy",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    dob_26 = Fact(
+        id=fact_id_for_source(doc_26.id, 2),
+        subject="child",
+        predicate="dob",
+        value="2010-03-22",
+        value_text="DOB: 3/22/10",
+        qualifier=None,
+        assertion="asserted",
+        source_id=doc_26.id,
+        source_date=doc_26.date,
+        reporter=None,
+        life_stage="birth",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    walked_25 = Fact(
+        id=fact_id_for_source(doc_25.id, 1),
+        subject="child",
+        predicate="walked_age_months",
+        value="19",
+        value_text="walking at about 19 mos",
+        qualifier=None,
+        assertion="asserted",
+        source_id=doc_25.id,
+        source_date=doc_25.date,
+        reporter=None,
+        life_stage="infancy",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    dob_25 = Fact(
+        id=fact_id_for_source(doc_25.id, 2),
+        subject="child",
+        predicate="dob",
+        value="2010-03-22",
+        value_text="Date of Birth: 3/22/10",
+        qualifier=None,
+        assertion="asserted",
+        source_id=doc_25.id,
+        source_date=doc_25.date,
+        reporter=None,
+        life_stage="birth",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+
+    ledger_a = merge_ledger_with_extracted(
+        child=child,
+        prior=None,
+        new_sources=[doc_26],
+        new_facts_by_source={doc_26.id: [walked_26, dob_26]},
+    )
+    ok &= check(
+        "A alone",
+        len(ledger_a.sources) == 1
+        and {f.source_id for f in ledger_a.facts if f.source_id == doc_26.id}
+        == {doc_26.id},
+        f"sources={len(ledger_a.sources)} "
+        f"doc_26_facts={sum(1 for f in ledger_a.facts if f.source_id == doc_26.id)}",
+    )
+
+    ledger_ab = merge_ledger_with_extracted(
+        child=child,
+        prior=ledger_a,
+        new_sources=[doc_25],
+        new_facts_by_source={doc_25.id: [walked_25, dob_25]},
+    )
+    ok &= check(
+        "grows 1→2 sources",
+        {s.id for s in ledger_ab.sources} == {doc_26.id, doc_25.id},
+        f"sources={[s.id for s in ledger_ab.sources]}",
+    )
+    doc_facts = [
+        f
+        for f in ledger_ab.facts
+        if f.source_id in {doc_26.id, doc_25.id}
+        and f.predicate in {"walked_age_months", "dob"}
+    ]
+    ok &= check(
+        "facts accumulate",
+        len(doc_facts) == 4,
+        f"agreeing facts={[(f.source_id, f.predicate, f.value) for f in doc_facts]}",
+    )
+    conflicts, _, _, _, _ = detect_disagreements(ledger_ab.facts)
+    record_conflicts = [
+        c
+        for c in conflicts
+        if c.predicate in {"walked_age_months", "dob"}
+    ]
+    ok &= check(
+        "no record conflict on agreement",
+        len(record_conflicts) == 0,
+        f"conflicts={[c.predicate for c in conflicts]}",
+    )
+
+    before_26 = {f.id for f in ledger_ab.facts if f.source_id == doc_26.id}
+    before_25 = {
+        (f.id, f.predicate, f.value)
+        for f in ledger_ab.facts
+        if f.source_id == doc_25.id
+    }
+    ledger_re = merge_ledger_with_extracted(
+        child=child,
+        prior=ledger_ab,
+        new_sources=[doc_26],
+        new_facts_by_source={doc_26.id: [walked_26, dob_26]},
+    )
+    after_26 = [f for f in ledger_re.facts if f.source_id == doc_26.id]
+    after_25 = {
+        (f.id, f.predicate, f.value)
+        for f in ledger_re.facts
+        if f.source_id == doc_25.id
+    }
+    ok &= check(
+        "reingest replaces A",
+        {f.id for f in after_26} == before_26 and len(after_26) == 2,
+        f"before={before_26} after={[f.id for f in after_26]}",
+    )
+    ok &= check(
+        "no duplicate on reingest",
+        sum(1 for f in ledger_re.facts if f.source_id == doc_26.id) == 2,
+        f"doc_26 count={sum(1 for f in ledger_re.facts if f.source_id == doc_26.id)}",
+    )
+    ok &= check(
+        "B untouched",
+        after_25 == before_25,
+        f"doc_25 changed on A reingest",
+    )
+    return ok
+
+
 def test_incremental_extract_unit() -> bool:
     """
     Stage 6.1: merge by source_id, stable ids across unrelated merges,
@@ -3140,6 +3435,7 @@ def main() -> int:
     results: list[tuple[str, bool]] = []
     results.append(("fixtures.decontamination", test_fixture_decontamination()))
     results.append(("fixtures.prompt_hygiene", test_meta_never_in_prompt()))
+    results.append(("fixtures.case_manifest", test_case_manifest_unit()))
     results.append(("schema.ledger", test_ledger_schema_unit()))
     results.append(("schema.predicates", test_predicate_vocabulary_unit()))
     results.append(("grouping.key", test_grouping_unit()))
@@ -3152,6 +3448,7 @@ def main() -> int:
     results.append(("validators.provenance", test_provenance_validator_unit()))
     results.append(("stage45.unit", test_derived_and_coverage_unit()))
     results.append(("extract.incremental", test_incremental_extract_unit()))
+    results.append(("fixtures.case_accumulation", test_case_accumulation_unit()))
     results.append(("extract.chunking", test_chunking_unit()))
     results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))

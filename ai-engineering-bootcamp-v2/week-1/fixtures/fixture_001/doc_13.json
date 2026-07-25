@@ -1,0 +1,43 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "E.C.",
+    "dob": "2010-03-22",
+    "evaluation_date": "2025-07-11"
+  },
+  "sources": [
+    {
+      "id": "doc_13",
+      "type": "other",
+      "date": "2025-12-15",
+      "label": "WRAP services need letter",
+      "content": "\n\nStudent: Emma Rose Callahan\t \t\tBirthdate:          3/22/10\t\nParent:  Diane Callahan\t\t\tPhone:   408-555-0164      \t        \t\nEmail:     tsanders88@emailhost.com       \t\tAddress: 1847 Maple Ridge Dr., Oakhurst\t\t     \n\nDate of Letter: 12/15/2025\t\t\t\t\t\t\t\t\t\t     \t\nTo Whom It May Concern:\nI am writing to advocate for the continuation of wrap-around support services for Emma Rose Callahan (DOB: 3/22/10). As a Licensed Educational Psychologist, I recently completed a comprehensive psycho-educational evaluation of Emma Rose Callahan, and my findings strongly support the necessity of ongoing, intensive support to address her complex needs.\nAs you know, Emma Rose Callahan has a complex history including early trauma, adoption, and multiple placements. She carries diagnoses of Autism Spectrum Disorder (Level 2), Attention-Deficit/Hyperactivity Disorder (Predominantly Inattentive Presentation, Severe), Post Traumatic Stress Disorder, Bipolar Disorder (with and without Psychosis) and Specific Learning Disabilities in Written Expression and Mathematics.\nMy recent evaluation confirms the severity of Emma Rose Callahan's challenges and highlights the critical role that wrap-around services play in maintaining her safety, well-being, and limited progress. Key findings from my assessment include:\nSignificant Deficits in Executive Functioning: Emma Rose Callahan exhibits pervasive and severe deficits in executive functioning, including attention regulation, initiation, organization, working memory, cognitive flexibility, and inhibition. These deficits significantly impair her ability to plan, organize, and complete tasks independently, and to self-regulate her behavior and emotions.\nImpaired Adaptive Skills: Emma Rose Callahan demonstrates significant deficits in adaptive functioning, impacting her ability to perform daily living skills, maintain personal hygiene, and navigate community settings safely. She requires constant supervision and support to complete basic routines.\nInability to Succeed in Traditional Educational Settings: Due to her disabilities, Emma Rose Callahan has been unable to succeed in either a traditional seat-based school environment or in a home-school setting without intensive support. My evaluation confirms that she requires a highly individualized and structured learning environment with consistent adult support to access educational materials and manage her behavior. Recently Emma Rose Callahan changed schools again due to earning no minimal to no school credits from Options for Youth. She is receiving more support at North Valley Charter, but is at a critical juncture in this transition to her new program. I am concerned that changing her in-home support will jeopardize her progress further.\nLack of Social Engagement and Support: Emma Rose Callahan lacks meaningful peer relationships and does not participate independently in any outside activities.  \nTriggers and Unsafe Behaviors at Home: Emma Rose Callahan is frequently triggered by interactions with her siblings, leading to dysregulation and unsafe behaviors. The current family support specialist plays a crucial role in providing on-site support during these times, helping to de-escalate situations and ensure Emma Rose Callahan's safety and the safety of others.\nParental Limitations: Emma Rose Callahan's parent is unable to leave her home alone due to concerns about her poor judgment and inability to consistently follow directives or self-regulate.\nInconsistent Skill Generalization: Emma Rose Callahan reportedly struggles to generalize skills learned in therapeutic settings to other environments, particularly when the behavior support specialist is not present. This highlights the need for consistent, on-site support to reinforce skills and promote generalization.\nGiven these findings, I strongly believe that discontinuing wrap-around services at this time would be detrimental to Emma Rose Callahan's well-being and could lead to a regression in her limited progress. The current support system is essential for:\nMaintaining Emma Rose Callahan's safety and preventing escalation of behavioral issues.\nProviding a structured and supportive learning environment that accommodates her unique needs.\nFacilitating skill generalization and promoting greater independence.\nProviding respite and support to Emma Rose Callahan's parent, who is struggling to manage her complex needs independently.\nI urge you to reconsider the decision to discontinue services and to recognize the critical role that wrap-around support plays in Emma Rose Callahan's life. I am available to discuss my evaluation findings in more detail and to collaborate with you in developing a comprehensive plan to meet Emma Rose Callahan's ongoing needs.\nThank you for your time and consideration.\nSincerely,\nLaura T. Pierce, CA LEP #3003\nLaura T. Pierce, LEP, NCSP, ABSNP Licensed Educational Psychologist\n\n Laura T. Pierce, Licensed Educational Psychologist #3003\n500 Commerce Plaza, Brookfield, CA 94211\nPh: 530-555-0188         l.pierce@evalclinic.com",
+      "doc_class": "narrative"
+    }
+  ],
+  "expected_ledger_facts": [
+    {
+      "source_id": "doc_13",
+      "predicate": "legal_name",
+      "value": "Emma Rose Callahan"
+    },
+    {
+      "source_id": "doc_13",
+      "predicate": "dob",
+      "value": "2010-03-22"
+    },
+    {
+      "source_id": "doc_13",
+      "predicate": "trauma_history"
+    }
+  ],
+  "expected_facts": [
+    {
+      "source_id": "doc_13",
+      "statement": "She has a complex history including early trauma, adoption, and multiple placements.",
+      "life_stage": "birth"
+    }
+  ],
+  "expected_conflicts": []
+}

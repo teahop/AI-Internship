@@ -1,0 +1,32 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "E.C.",
+    "dob": "2010-03-22",
+    "evaluation_date": "2025-07-11"
+  },
+  "sources": [
+    {
+      "id": "doc_01",
+      "type": "other",
+      "date": "2025-12-27",
+      "label": "Assessment invoice",
+      "content": "\n                Thank you for making all checks payable to Laura T. Pierce mailing to 800 Orchard Road N.C., CA 94212\nLaura T. Pierce, LEP #3003\n Assessment and consultation to unlock the mysteries of learning, thinking and behavior\tLaura T. Pierce, LEP #3003\n Assessment and consultation to unlock the mysteries of learning, thinking and behavior\tLaura T. Pierce, LEP #3003\n Assessment and consultation to unlock the mysteries of learning, thinking and behavior\t\nDate: December 27, 2025\t\nDate: December 27, 2025\t\nDate: December 27, 2025\t\nDate: December 27, 2025\nMailing Address\n800 Orchard Road\nMillbrook, CA 94212\nEmail: l.pierce@evalclinic.com\tMailing Address\n800 Orchard Road\nMillbrook, CA 94212\nEmail: l.pierce@evalclinic.com\tMailing Address\n800 Orchard Road\nMillbrook, CA 94212\nEmail: l.pierce@evalclinic.com\tOffice Address\n500 Commerce Plaza, Suite G, Brookfield, CA 94211\nPhone 530-555-0188 \n\tOffice Address\n500 Commerce Plaza, Suite G, Brookfield, CA 94211\nPhone 530-555-0188 \n\tOffice Address\n500 Commerce Plaza, Suite G, Brookfield, CA 94211\nPhone 530-555-0188 \n\tOffice Address\n500 Commerce Plaza, Suite G, Brookfield, CA 94211\nPhone 530-555-0188 \n\nTo\tDiane Callahan \n1847 Maple Ridge Dr.\nOakhurst\t\tDiane Callahan \n1847 Maple Ridge Dr.\nOakhurst\t\tDiane Callahan \n1847 Maple Ridge Dr.\nOakhurst\t\t\t\t\nevaluator\tevaluator\tDescription\tpayment terms\tpayment terms\tdue date\nLaura T. Pierce, LEP #3003\tLaura T. Pierce, LEP #3003\tEvaluation-follow up\tSee Agreement for Professional Svc\tSee Agreement for Professional Svc\t \ndescription\tdescription\tdescription\t\tHours\t total\nFollow up from Psych-Educational Evaluation for Emma Rose Callahan  \nDOB 3/22/10\n\n\n\n\n\n\n\n\n\n\n\n\n\n\tFollow up from Psych-Educational Evaluation for Emma Rose Callahan  \nDOB 3/22/10\n\n\n\n\n\n\n\n\n\n\n\n\n\n\tFollow up from Psych-Educational Evaluation for Emma Rose Callahan  \nDOB 3/22/10\n\n\n\n\n\n\n\n\n\n\n\n\n\n\t\n   $150.00\t\n 1\n\n\n\n\n  \t\n$150.00\n \n\n\n\n\n\n      \n\n\n\n                     \n\n\n\n\n\n\t\t\t\t\t \n\n \n\n\t\t\t\t\t\n       Subtotal\t$150.00\nDeposit\t\nBalance Total\t$150.00",
+      "doc_class": "narrative"
+    }
+  ],
+  "expected_ledger_facts": [
+    {
+      "source_id": "doc_01",
+      "predicate": "legal_name",
+      "value": "Emma Rose Callahan"
+    },
+    {
+      "source_id": "doc_01",
+      "predicate": "dob",
+      "value": "2010-03-22"
+    }
+  ],
+  "expected_conflicts": []
+}

@@ -1,0 +1,52 @@
+{
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "E.C.",
+    "dob": "2010-03-22",
+    "evaluation_date": "2025-07-11"
+  },
+  "sources": [
+    {
+      "id": "doc_21",
+      "type": "observation",
+      "date": "2025-04-19",
+      "label": "Student profile and interview",
+      "content": "Name:  \tEmma Rose Callahan\t\t\t\t\tAsk the Date: looked on phone\nOther dates of testing and interview: 4-19-25\nx_ explain the assessment process before starting this interview.                Dates of classroom observations:\nBirthday: 3/22/10\t\t\t\t\nIf young or ID, see if child knows address and contact info for family:\nWho do you live with? Ask about Family, Pets, jobs, etc. arrangements if parents are split up.  Mom, used to go to dad’s and do for school- Options for Youth home school. My sister is 13 and my brother who is 17. \nInterests: What do you do for fun? I do a variety. I like to dance. My sister makes fun of me, but I don’t care. Pop music. I love country. I love to sing to them. I listen over and over till I get the words right. I do love music and genuinely like to listen to it because I can find a song I connect with. I used to do horseback. Funny thing is when I was there at my old one, he wasn’t my horse, but he was more stubborn and I could get him to trot without a whip. He was so stubborn and lazy and he would not go. I genuinely think the connection is that horses listen and even when you brush and saddle them they learn that you like them. I like little kids and plants and going to kids camps. \n\nWhat kinds of things do you enjoy learning about?  I am taking Science on computer, Math get ready for Math 1 in packets and History World. I spend about basically typically three or four hours a day, depends on who I am with, Aunt/family friend Nadia or my mom or at home. At Nadia’s I go till 4. I go till noon or 1 at home. \n\nSkills: What are you good at?  I’m pretty good at history, but the best grade I have is in science. \nWhat do you struggle with?  Not with a lot at school. In life probably just… I don’t know\nWorry about? Not really, now that I am out of school. \nTell me your classes and rate your them on a scale of 1-10: \nHow is your handwriting? Legible, not neat. \nYour keyboarding and computer skills? Terrible!! Three fingers. \nFriendships: Do you have a best friend? Yes, two Mo and Samantha. I see Mo but Samantha it’s harder to line up a lot. We go for walks, watch a show we like or we will converse about a show we both know about and have watched a billion times. \nTell me about your friends. How often they get to see each other, activities, etc.\n\nWhat do you think your parents would say makes you a good person?  My bluntness is a good quality. She would also say my kindness and big heart. She says I am tenacious. \n\nThings I do over and over and it’s hard to stop- I’ll bug people till I get the answer. \n\nWhat is the hardest thing about growing up? I think the responsibilities. \n\nWhat is the most exciting thing you ever did? Getting on a horse for the first time when I was 7 or 8. \n\nWhat is the one thing you and your parents disagree on the most?  A lot of things sometimes….silly things like chores sometimes. \n\nWho do you go to or what do you do when you need help? My mom. I hit the jackpot in the mom department. \n\nWhat kinds of things create problems for you at home? No answer\n\nAt school? When I was at school it was all the kids.\n\nIf you could change something about school, what would you want to change. Everything. \n\nDo you have any goals or things you would really like to accomplish or try? Haven’t made a bucket list yet. \n\nDo you have any ideas about what you want to be when you grow up? Like a job- I would want to be a equine therapist- something with horses in general. Work with the blind even though I don’t know anyone blind \nAre there any things you do to overcome a bad day or a tough time or to help you relax?  I mostly just listen to music.\nDescribe your sleep routine and how you sleep. Without meds it’s really hard, with meds it’s fine. I always wake up feeling tired. I go to bed at 8 in my room in bed at 9. Up around 6 but it varies. I do have my Phone in bed. I had my tonsil out and no more sleep apnea. \nDescribe your diet? Pretty good.\nIs there anything you are doing that hurts you or is not helping you? no\nWhat conditions make it easiest for you to learn? Quiet, music, working with a partner or in groups or alone, lighting, temperature, chance to move around?  Lately I have been working with my sister and that has been working. I like quiet. \n\nHow are you liking school? I like home school. In site based school, there are too many expectations at the same time. For example, I would be asked to learn vocabulary, write sentences and definitions then there is more paperwork like comprehension questions after a video. I felt really awkward at school. I had to talk to people. I am socially awkward with everybody. There are things I do over and over and can’t stop like blurting the same thing randomly over and over,  “squirrel moments.” Some days I do it a few times, others more often. I will also watch movies over and over and listen to songs over and over. I am getting along a lot better with my Dad now. Nadia taught her to set personal boundaries.\n\n“My mom thinks I am depressed. I stay in my room a lot and like listening to music to music. Sometimes I don’t like what my siblings ask me what to do and my motivation is low for things that don’t interest me. I am ok with failure. I understand that it’s part of learning and I know I need to try. In my writing I like to use metaphors like a river or an animal. I think I would be good at public speaking. I wrote an essay about life and what happens when we die. When you do things you are passionate about and you get ill and the doctor says youre going to die. So you should do what you’re passionate before you die. Live your life, it’s short. Live your life, now!\nAppearance:\t+\t\t\t\nAffect: flat until she was comfortable. Works hard and has good stamina. When she is done, she’s done though and her energy is gone. Emma Rose Callahan works very slowly and carefully.  Flat tone when reading aloud, but normal pace in conversation and reading. \nConversation and eye contact: quiet, intermittent eye contact\nDo you wear glasses? I am supposed to and I have glasses for far away, but I never wear them.\nHow do you feel today? Sleep, breakfast, etc. I’m tired. But fine. \nConversational Proficiency: ok. She is not clear and sometimes it is hard to follow her line of thinking. \nLevel of cooperation: cooperative, persisted, complained about hard things, but could laugh at herself.\nAttention and concentration: cautious, yet could be impulsive often self-corrected and made errors at time due to poor attention, \nSelf-confidence; does not like math\nCare in responding- wanted to do well. Sometimes checked her work. \nResponse to difficult tasks- asks how many more she has to complete. Reports being tired as items became more difficult. \n",
+      "doc_class": "narrative"
+    }
+  ],
+  "expected_ledger_facts": [
+    {
+      "source_id": "doc_21",
+      "predicate": "legal_name",
+      "value": "Emma Rose Callahan"
+    },
+    {
+      "source_id": "doc_21",
+      "predicate": "dob",
+      "value": "2010-03-22"
+    },
+    {
+      "source_id": "doc_21",
+      "predicate": "sleep"
+    },
+    {
+      "source_id": "doc_21",
+      "predicate": "testing_impression"
+    }
+  ],
+  "expected_facts": [
+    {
+      "source_id": "doc_21",
+      "statement": "Without medication sleep is really hard; with medication it is fine, and she always wakes up feeling tired.",
+      "life_stage": "current"
+    },
+    {
+      "source_id": "doc_21",
+      "statement": "Cooperative and persistent but works slowly and carefully, with a flat affect until comfortable.",
+      "life_stage": "current"
+    }
+  ],
+  "expected_conflicts": []
+}

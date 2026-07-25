@@ -1,0 +1,373 @@
+{
+  "case_id": "fixture_001",
+  "confirm_synthetic": true,
+  "section": "history",
+  "child": {
+    "initials": "E.C.",
+    "dob": "2010-03-22",
+    "evaluation_date": "2025-07-11"
+  },
+  "_comment": "Per-file case for the incremental /extract. Each file is extracted once and merged into an accumulating ledger (Stage 6). Content source of truth: fixture_001_ask.json. Keys derived from source content + predicates.py, never from a finished report (§10/§14.3). Arrival order = packet collection order (doc_NN).",
+  "arrival_order": [
+    "doc_01",
+    "doc_02",
+    "doc_03",
+    "doc_04",
+    "doc_05",
+    "doc_06",
+    "doc_07",
+    "doc_08",
+    "doc_09",
+    "doc_10",
+    "doc_11",
+    "doc_12",
+    "doc_13",
+    "doc_14",
+    "doc_17",
+    "doc_20",
+    "doc_21",
+    "doc_22",
+    "doc_23",
+    "doc_24",
+    "doc_25",
+    "doc_26",
+    "doc_27",
+    "doc_28"
+  ],
+  "files": [
+    {
+      "id": "doc_01",
+      "fixture": "doc_01.json",
+      "type": "other",
+      "date": "2025-12-27",
+      "doc_class": "narrative",
+      "label": "Assessment invoice"
+    },
+    {
+      "id": "doc_02",
+      "fixture": "doc_02.json",
+      "type": "assessment",
+      "date": "2025-04-26",
+      "doc_class": "score_report",
+      "label": "BASC-3 Self-report"
+    },
+    {
+      "id": "doc_03",
+      "fixture": "doc_03.json",
+      "type": "assessment",
+      "date": "2025-05-10",
+      "doc_class": "score_report",
+      "label": "Sensory Profile-2 (self)"
+    },
+    {
+      "id": "doc_04",
+      "fixture": "doc_04.json",
+      "type": "parent",
+      "date": "2024-12-01",
+      "doc_class": "score_report",
+      "label": "ABAS Adaptive Behavior — Parent"
+    },
+    {
+      "id": "doc_05",
+      "fixture": "doc_05.json",
+      "type": "teacher",
+      "date": "2025-02-01",
+      "doc_class": "score_report",
+      "label": "ABAS Adaptive Behavior — Teacher"
+    },
+    {
+      "id": "doc_06",
+      "fixture": "doc_06.json",
+      "type": "teacher",
+      "date": "2025-05-15",
+      "doc_class": "score_report",
+      "label": "BASC-3 Teacher"
+    },
+    {
+      "id": "doc_07",
+      "fixture": "doc_07.json",
+      "type": "parent",
+      "date": "2025-04-19",
+      "doc_class": "score_report",
+      "label": "BASC-3 Parent"
+    },
+    {
+      "id": "doc_08",
+      "fixture": "doc_08.json",
+      "type": "assessment",
+      "date": "2025-04-26",
+      "doc_class": "score_report",
+      "label": "Brown EF/A Scales — Self-report"
+    },
+    {
+      "id": "doc_09",
+      "fixture": "doc_09.json",
+      "type": "teacher",
+      "date": "2025-06-19",
+      "doc_class": "score_report",
+      "label": "D-REF Executive Functions — Teacher"
+    },
+    {
+      "id": "doc_10",
+      "fixture": "doc_10.json",
+      "type": "assessment",
+      "date": "2025-04-22",
+      "doc_class": "score_report",
+      "label": "DAS-II cognitive score report"
+    },
+    {
+      "id": "doc_11",
+      "fixture": "doc_11.json",
+      "type": "school",
+      "date": "2024-10-02",
+      "doc_class": "narrative",
+      "label": "IEP — current school records"
+    },
+    {
+      "id": "doc_12",
+      "fixture": "doc_12.json",
+      "type": "assessment",
+      "date": "2025-04-26",
+      "doc_class": "score_report",
+      "label": "KTEA-3 achievement score report"
+    },
+    {
+      "id": "doc_13",
+      "fixture": "doc_13.json",
+      "type": "other",
+      "date": "2025-12-15",
+      "doc_class": "narrative",
+      "label": "WRAP services need letter"
+    },
+    {
+      "id": "doc_14",
+      "fixture": "doc_14.json",
+      "type": "other",
+      "date": "2025-05-27",
+      "doc_class": "narrative",
+      "label": "Permission to exchange information"
+    },
+    {
+      "id": "doc_17",
+      "fixture": "doc_17.json",
+      "type": "assessment",
+      "date": "2025-06-23",
+      "doc_class": "score_report",
+      "label": "RIAS-2 memory and processing speed (PDF)"
+    },
+    {
+      "id": "doc_20",
+      "fixture": "doc_20.json",
+      "type": "parent",
+      "date": "2025-04-19",
+      "doc_class": "score_report",
+      "label": "SRS Social Responsiveness — Parent"
+    },
+    {
+      "id": "doc_21",
+      "fixture": "doc_21.json",
+      "type": "observation",
+      "date": "2025-04-19",
+      "doc_class": "narrative",
+      "label": "Student profile and interview"
+    },
+    {
+      "id": "doc_22",
+      "fixture": "doc_22.json",
+      "type": "other",
+      "date": "2025-04-12",
+      "doc_class": "narrative",
+      "label": "Assessment plan and contract for services"
+    },
+    {
+      "id": "doc_23",
+      "fixture": "doc_23.json",
+      "type": "assessment",
+      "date": "2025-04-22",
+      "doc_class": "score_report",
+      "label": "Brown EF/A Scales — Multirater"
+    },
+    {
+      "id": "doc_24",
+      "fixture": "doc_24.json",
+      "type": "parent",
+      "date": "2025-04-22",
+      "doc_class": "score_report",
+      "label": "Brown EF/A Scales — Parent"
+    },
+    {
+      "id": "doc_25",
+      "fixture": "doc_25.json",
+      "type": "school",
+      "date": "2019-05-29",
+      "doc_class": "narrative",
+      "label": "IEP — Fairhaven initial (4th grade)"
+    },
+    {
+      "id": "doc_26",
+      "fixture": "doc_26.json",
+      "type": "prior_eval",
+      "date": "2013-09-10",
+      "doc_class": "narrative",
+      "label": "Prior early childhood diagnostic assessment (age 3)"
+    },
+    {
+      "id": "doc_27",
+      "fixture": "doc_27.json",
+      "type": "other",
+      "date": "2026-07-17",
+      "doc_class": "narrative",
+      "label": "Review letter for MERIDIAN application"
+    },
+    {
+      "id": "doc_28",
+      "fixture": "doc_28.json",
+      "type": "assessment",
+      "date": "2025-04-26",
+      "doc_class": "score_report",
+      "label": "SSIS-SEL self-report"
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_timelines": [
+    {
+      "predicate": "grade",
+      "sequence": "4 (2019) -> 9 (2024/2025-04) -> 10 (2025-06)"
+    },
+    {
+      "predicate": "age_years",
+      "sequence": "3 (2013) -> 8 (2019) -> 14 (2024) -> 15 (2026, stated)"
+    },
+    {
+      "predicate": "iep_status",
+      "sequence": "none/ineligible (2013) -> in place SLD+OHI (2019) -> in place SLD (2024)"
+    },
+    {
+      "predicate": "medications",
+      "sequence": "none (2013) -> guanfacine/Singulair/melatonin (2019) -> Geodon/Trileptal/Vyvanse (2024)"
+    },
+    {
+      "predicate": "allergy_status",
+      "sequence": "none (2013) -> seasonal (2019) -> no known (2024)"
+    }
+  ],
+  "expected_variance": [
+    {
+      "predicate": "sleep",
+      "note": "student self-report (2025, poor w/o meds) vs parent report (2013 sleeps well; 2019 sleep problems/CPAP)"
+    }
+  ],
+  "expected_agreements": [
+    {
+      "predicate": "walked_age_months",
+      "value": "19",
+      "sources": [
+        "doc_26",
+        "doc_25",
+        "doc_11"
+      ]
+    },
+    {
+      "predicate": "dob",
+      "value": "2010-03-22",
+      "note": "consistent across every source"
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "item": "Diagnosis: Adjustment Disorder w/ Depressed Mood (309.0)",
+      "source_id": "doc_26"
+    },
+    {
+      "item": "Diagnoses: ASD L2, ADHD-PI (severe), PTSD, Bipolar, SLD (written expression, math)",
+      "source_id": "doc_13"
+    },
+    {
+      "item": "Diagnoses: RAD and ADHD",
+      "source_id": "doc_11"
+    },
+    {
+      "item": "Diagnosis: ADHD (AD/HD)",
+      "source_id": "doc_25"
+    },
+    {
+      "item": "DIAGNOSIS DISPUTE: MERIDIAN evaluator (Dr. [EVALUATOR], 2026-04-13) concluded NO ASD; Pierce concludes ASD Level 2. Largest disagreement in the case — a diagnosis has no predicate, so this is a coverage gap, NOT an expected_conflict.",
+      "source_id": "doc_27"
+    },
+    {
+      "item": "Adoption / foster placement / multiple placements (no predicate)",
+      "source_id": "doc_26"
+    },
+    {
+      "item": "Residential treatment history (no predicate)",
+      "source_id": "doc_27"
+    }
+  ],
+  "candidate_facts": [
+    {
+      "source_id": "doc_21",
+      "candidate": "tonsillectomy -> hospitalizations",
+      "reason": "mentioned in passing; also durable-collision hazard"
+    },
+    {
+      "source_id": "doc_21",
+      "candidate": "unnamed 'meds' -> medications",
+      "reason": "no named medication"
+    },
+    {
+      "source_id": "doc_25",
+      "candidate": "appendectomy 4/1/19 -> hospitalizations",
+      "reason": "explicit but durable-collision hazard (see known_hazards)"
+    },
+    {
+      "source_id": "doc_25",
+      "candidate": "talking ~2 yrs -> first_words_age_months=24",
+      "reason": "'talking' != first words; 'about'"
+    },
+    {
+      "source_id": "doc_26",
+      "candidate": "suspected prenatal meth exposure -> pregnancy_course",
+      "reason": "hedged ('alleged'/'suspected')"
+    },
+    {
+      "source_id": "doc_11",
+      "candidate": "reading at 7th-grade level -> reading_* ",
+      "reason": "general reading level; vocabulary splits basic/fluency/comprehension"
+    },
+    {
+      "source_id": "doc_11",
+      "candidate": "falls asleep in class -> sleep / classroom_engagement_impression",
+      "reason": "predicate ambiguous"
+    }
+  ],
+  "known_hazards": [
+    {
+      "hazard": "hospitalizations is durable but the case has acquired events over time: none (2013) / appendectomy (2019) / tonsillectomy (2025). If all are extracted, the detector groups them as a false record conflict. Treated as a timeline here; events kept out of keys as candidates. Real vocabulary limitation (TJ)."
+    },
+    {
+      "hazard": "doc_11 copies a stale 2019 health block forward verbatim (seasonal allergies, appendectomy, guanfacine) alongside the current 2024 statement (no known allergies, Geodon/Trileptal/Vyvanse). A naive extractor may emit both and create a same-source, same-date allergy_status/medications collision. Key asserts the CURRENT 2024 values only."
+    },
+    {
+      "hazard": "Age quirk: reports state 14 (2024/2025) and 15 (2026) but DOB 2010-03-22 computes 15/16. This is an age-validator recomputation finding, not a cross-source conflict."
+    },
+    {
+      "hazard": "IEP headers (doc_25, doc_11) read 'Emma Rose Callahan Jasmine' in the legal-name field. Treated as a de-identification / full-vs-common-name artifact and excluded from legal_name; not encoded as a header-vs-body name conflict (TJ)."
+    }
+  ],
+  "dropped_sources": [
+    {
+      "id": "doc_18",
+      "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"
+    },
+    {
+      "id": "doc_19",
+      "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"
+    }
+  ],
+  "counts": {
+    "sources_total": 24,
+    "narrative": 9,
+    "score_report": 15,
+    "dropped": 2
+  }
+}

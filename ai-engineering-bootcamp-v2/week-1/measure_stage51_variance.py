@@ -4,9 +4,10 @@ Stage 5.3 — re-measure after subject enum + provenance stamp.
 
 Same metrics as 5.1/5.2A plus subject stability.
 
-Default fixture: realistic anonymized packet (`fixture_001_ask_small.json`).
-That case has no expected_* yet — fact/conflict P/R are reported as 1.0 when
-expectations are absent; use predicate/subject/temporality stability instead.
+Default case: fixture_001 per-file packet (manifest + 24 docs). Score reports
+are skipped by build_ledger (doc_class triage); only the 9 narrative docs cost
+tokens. expected_conflicts is [] (precision / under-extraction case) with
+authored expected_ledger_facts on narrative fixtures for real P/R.
 """
 
 from __future__ import annotations
@@ -17,22 +18,22 @@ from collections import defaultdict
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from conflicts import detect_disagreements_from_ledger
-from extract import build_ledger
+from extract import build_ledger, merge_ledger_with_extracted
 from provider import ModelProvider, compute_cost_usd
-from schemas import Child, Source
 from test_all_stages import (
-    _load_fixture,
+    FIXTURE_001_MANIFEST_PATH,
     _score_ledger_facts,
+    load_case_manifest,
     score_conflicts,
 )
 
 WORKDIR = Path(__file__).resolve().parent
 N_RUNS = 5
-FIXTURE_001_SMALL_PATH = WORKDIR / "fixtures" / "fixture_001_ask_small.json"
 FIXTURES = (
-    ("fixture_001_small", FIXTURE_001_SMALL_PATH),
+    ("fixture_001", FIXTURE_001_MANIFEST_PATH),
 )
 
 
@@ -55,27 +56,76 @@ def _fact_key(f) -> str:
     )
 
 
+def _aggregate_expected_ledger_facts(keys_by_id: dict) -> list[dict]:
+    expected: list[dict] = []
+    for sid in sorted(keys_by_id):
+        expected.extend(keys_by_id[sid].get("expected_ledger_facts") or [])
+    return expected
+
+
 def run_fixture_once(
     label: str,
     path: Path,
     provider: ModelProvider,
 ) -> dict:
-    fixture = _load_fixture(path)
-    child = Child.model_validate(fixture["child"])
-    sources = [Source.model_validate(s) for s in fixture["sources"]]
-    model = fixture.get("model") or "gpt-4o-mini"
-    ledger, tokens_by_source, pt, ct, review, subj_review, gap, timelines = build_ledger(
-        provider, child=child, sources=sources, model=model
-    )
+    man = json.loads(path.read_text(encoding="utf-8"))
+    child, sources, keys_by_id = load_case_manifest(path)
+    model = man.get("model") or "gpt-4o-mini"
+
+    # Incremental extract so one ValidationError (e.g. model value "null") does not
+    # abort the whole case — report the failed source and continue (known realistic-
+    # packet hazard; see test_extract_stage25).
+    ledger = None
+    tokens_by_source: dict[str, int] = {}
+    pt = ct = 0
+    review: list[str] = []
+    extract_failures: list[dict] = []
+    for source in sources:
+        try:
+            ledger, toks, p_tok, c_tok, rev, _subj, _gap, _tl = build_ledger(
+                provider,
+                child=child,
+                sources=[source],
+                model=model,
+                prior_ledger=ledger,
+            )
+            tokens_by_source.update(toks)
+            pt += p_tok
+            ct += c_tok
+            for r in rev:
+                if r not in review:
+                    review.append(r)
+        except ValidationError as exc:
+            extract_failures.append(
+                {
+                    "source_id": source.id,
+                    "doc_class": source.doc_class,
+                    "error": str(exc).split("\n", 1)[0],
+                }
+            )
+            print(
+                f"  !! extract ValidationError on {source.id} "
+                f"({source.doc_class}): continuing with empty facts for this source"
+            )
+            # Record the source with zero facts so coverage/arrival stays intact.
+            ledger = merge_ledger_with_extracted(
+                child=child,
+                prior=ledger,
+                new_sources=[source],
+                new_facts_by_source={source.id: []},
+            )
+            tokens_by_source[source.id] = 0
+
+    assert ledger is not None
     cost = compute_cost_usd(model, pt, ct)
     tokens = sum(tokens_by_source.values())
 
-    expected_facts = fixture.get("expected_ledger_facts") or []
+    expected_facts = _aggregate_expected_ledger_facts(keys_by_id)
     found, missed = _score_ledger_facts(ledger.facts, expected_facts)
     fact_recall = (len(found) / len(expected_facts)) if expected_facts else 1.0
 
     conflicts, variance, _, _, _ = detect_disagreements_from_ledger(ledger)
-    expected_c = fixture.get("expected_conflicts") or []
+    expected_c = man.get("expected_conflicts") or []
     c_found, c_missed, c_fp = score_conflicts(conflicts, expected_c)
     tp, fn, fp = len(c_found), len(c_missed), len(c_fp)
     c_prec = tp / (tp + fp) if (tp + fp) else 1.0
@@ -86,6 +136,7 @@ def run_fixture_once(
         f"{label}.conflict_recall": (c_rec == 1.0) if expected_c else True,
         f"{label}.conflict_precision": c_prec == 1.0,
         f"{label}.fact_recall": (fact_recall == 1.0) if expected_facts else True,
+        f"{label}.extract_no_validation_error": len(extract_failures) == 0,
     }
 
     preds_by_source: dict[str, set[str]] = defaultdict(set)
@@ -96,12 +147,22 @@ def run_fixture_once(
         preds_by_source[f.source_id].add(f.predicate)
         temp_by_key[_fact_key(f)] = f.temporality
 
+    narrative_n = sum(1 for s in sources if s.doc_class == "narrative")
+    score_n = sum(1 for s in sources if s.doc_class == "score_report")
+
     return {
         "label": label,
-        "path": path.name,
+        "path": str(path.relative_to(WORKDIR)) if path.is_relative_to(WORKDIR) else path.name,
+        "sources_total": len(sources),
+        "narrative_sources": narrative_n,
+        "score_report_sources": score_n,
+        "extract_failures": extract_failures,
         "tokens": tokens,
         "cost_usd": cost,
         "fact_recall": fact_recall,
+        "expected_ledger_facts_n": len(expected_facts),
+        "found_ledger_facts_n": len(found),
+        "missed_ledger_facts": missed,
         "conflict_precision": c_prec,
         "conflict_recall": c_rec,
         "tp": tp,
@@ -149,7 +210,7 @@ def main() -> int:
 
     print("=" * 72)
     print(f"Stage 5.3 variance — {N_RUNS} runs × {len(FIXTURES)} fixtures")
-    print("Subject enum + provenance stamp; EXTRACT_TEMPERATURE=0.")
+    print("fixture_001 per-file case (9 narrative + 15 score_report); EXTRACT_TEMPERATURE=0.")
     print("=" * 72)
 
     all_runs: list[list[dict]] = []
@@ -162,11 +223,19 @@ def main() -> int:
         print(f"\n######## RUN {run_i}/{N_RUNS} ########")
         run_rows: list[dict] = []
         for label, path in FIXTURES:
-            print(f"\n--- run {run_i} · {label} ({path.name}) ---")
+            print(f"\n--- run {run_i} · {label} ({path}) ---")
             row = run_fixture_once(label, path, provider)
             run_rows.append(row)
             total_tokens += row["tokens"]
             total_cost += row["cost_usd"]
+            print(
+                f"  sources={row['sources_total']} "
+                f"(narrative={row['narrative_sources']} score_report={row['score_report_sources']})  "
+                f"expected_facts={row['expected_ledger_facts_n']}  "
+                f"extract_failures={len(row['extract_failures'])}"
+            )
+            for fail in row["extract_failures"]:
+                print(f"    extract_failure: {fail['source_id']} — {fail['error']}")
             print(
                 f"  fact_R={row['fact_recall']:.2f}  "
                 f"conflict P={row['conflict_precision']:.2f} R={row['conflict_recall']:.2f}  "
@@ -179,6 +248,12 @@ def main() -> int:
                 print(f"    missed: {m.get('topic') if isinstance(m, dict) else m}")
             for fp in row["false_positives"]:
                 print(f"    false_positive: {fp}")
+            if row["missed_ledger_facts"]:
+                print(f"  missed ledger facts ({len(row['missed_ledger_facts'])}):")
+                for m in row["missed_ledger_facts"][:20]:
+                    print(f"    missed_fact: {m}")
+                if len(row["missed_ledger_facts"]) > 20:
+                    print(f"    ... +{len(row['missed_ledger_facts']) - 20} more")
             for name, passed in row["check_results"].items():
                 check_seen.add(name)
                 if not passed:
@@ -195,7 +270,7 @@ def main() -> int:
         fr = [r["fact_recall"] for r in rows]
         cp = [r["conflict_precision"] for r in rows]
         cr = [r["conflict_recall"] for r in rows]
-        print(f"\n### {label} ({path.name})")
+        print(f"\n### {label} ({path})")
         print(
             f"  fact_recall:          min={min(fr):.2f}  mean={_mean(fr):.2f}  max={max(fr):.2f}"
         )
@@ -315,6 +390,19 @@ def main() -> int:
                     f"FP={r['false_positives']}"
                 )
 
+        if label == "fixture_001":
+            print("  spotlight — known_hazards (hospitalizations / doc_11 stale block):")
+            for ri, r in enumerate(rows, 1):
+                hosp = [c for c in r["conflicts"] if c["predicate"] == "hospitalizations"]
+                allergy = [c for c in r["conflicts"] if c["predicate"] == "allergy_status"]
+                meds = [c for c in r["conflicts"] if c["predicate"] == "medications"]
+                print(
+                    f"    run {ri}: hospitalizations_FP={len(hosp)}  "
+                    f"allergy_status_conflicts={len(allergy)}  "
+                    f"medications_conflicts={len(meds)}  "
+                    f"all_FP_topics={[c['topic'] for c in r['conflicts']]}"
+                )
+
     # ---- Check stability ----
     print("\n" + "=" * 72)
     print("CHECK STABILITY (threshold failures across 5 runs)")
@@ -348,6 +436,7 @@ def main() -> int:
                 "stage": "5.3",
                 "extract_temperature": 0.0,
                 "n_runs": N_RUNS,
+                "case": "fixture_001",
                 "total_tokens": total_tokens,
                 "total_cost_usd": round(total_cost, 6),
                 "always_fail": always_fail,
