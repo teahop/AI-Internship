@@ -3680,6 +3680,288 @@ def test_draft_validators_unit() -> bool:
     return ok
 
 
+def test_draft_age_cite_retry_unit() -> bool:
+    """
+    Model-free: missing f_computed_age_years cite fails validation; retry recovers
+    or 502s when the budget is exhausted. Covers the /draft path that tiny-ledger
+    happy-path tests never hit.
+    """
+
+    from fastapi import HTTPException
+
+    from draft import draft_section
+    from derived import (
+        AGE_DERIVATION,
+        COMPUTED_AGE_FACT_ID,
+        COMPUTED_SOURCE_ID,
+        build_age_years_fact,
+        build_request_dob_fact,
+    )
+    from provider import StructuredResult
+    from retries import VALIDATION_RETRY_ATTEMPTS, run_with_validation_retries
+    from schemas import (
+        DraftProseOutput,
+        DraftRequest,
+        DraftStatement,
+        EntailmentJudgment,
+        Fact,
+        Ledger,
+        Source,
+    )
+
+    print("\n=== Draft unit: age-cite miss → retry recover / exhaust ===")
+    ok = True
+
+    child = Child(name="Emma Rose Callahan", dob="2010-03-22", evaluation_date="2025-07-11")
+    expected = compute_age_years(child.dob, child.evaluation_date)
+    age_fact = build_age_years_fact(child, fact_id=COMPUTED_AGE_FACT_ID)
+
+    # Large-ish ledger (many facts) so this is not the tiny happy-path draft case.
+    sources = [
+        Source(
+            id=f"doc_{i:02d}",
+            type="school",
+            date="2024-10-02",
+            label=f"Source {i}",
+            content=f"Synthetic source {i} for scale draft stub.",
+        )
+        for i in range(1, 12)
+    ]
+    facts: list[Fact] = [
+        build_request_dob_fact(child, fact_id="f_request_dob"),
+        age_fact,
+    ]
+    for i, src in enumerate(sources, start=1):
+        facts.append(
+            Fact(
+                id=f"f_doc_{i:02d}_001",
+                subject="child",
+                predicate="legal_name",
+                value="Emma Rose Callahan",
+                value_text="Emma Rose Callahan",
+                qualifier=None,
+                assertion="asserted",
+                source_id=src.id,
+                source_date=src.date,
+                as_of_date=src.date,
+                reporter=None,
+                life_stage="current",
+                grade=None,
+                temporality="durable",
+                confidence="stated",
+            )
+        )
+        facts.append(
+            Fact(
+                id=f"f_doc_{i:02d}_002",
+                subject="child",
+                predicate="grade",
+                value=str(min(9, i)),
+                value_text=f"Grade {min(9, i)}",
+                qualifier=None,
+                assertion="asserted",
+                source_id=src.id,
+                source_date=src.date,
+                as_of_date=src.date,
+                reporter=None,
+                life_stage="current",
+                grade=str(min(9, i)),
+                temporality="as_of",
+                confidence="stated",
+            )
+        )
+    # A historical source age (must not satisfy the derived-age cite requirement).
+    facts.append(
+        Fact(
+            id="f_doc_25_age",
+            subject="child",
+            predicate="age_years",
+            value="8",
+            value_text="Age: 8 year(s) 10 months",
+            qualifier=None,
+            assertion="asserted",
+            source_id="doc_01",
+            source_date="2019-05-29",
+            as_of_date="2019-05-29",
+            reporter=None,
+            life_stage="school-age",
+            grade=None,
+            temporality="as_of",
+            confidence="stated",
+            derivation=None,
+        )
+    )
+
+    ledger = Ledger(
+        child=child,
+        ledger_version="1",
+        built_at="2026-07-16T00:00:00Z",
+        sources=sources,
+        facts=facts,
+    )
+    body = DraftRequest(
+        confirm_synthetic=True,
+        section="history",
+        ledger=ledger,
+        conflicts=[],
+        variance=[],
+        model="gpt-4o-mini",
+        entailment_model="gpt-4o-mini",
+    )
+
+    name_fact_id = "f_doc_01_001"
+    uncited = DraftProseOutput(
+        prose=(
+            f"{child.name} is a {expected}-year-old student. "
+            "Records list the legal name Emma Rose Callahan."
+        ),
+        statements=[
+            DraftStatement(
+                statement="Records list the legal name Emma Rose Callahan.",
+                fact_id=name_fact_id,
+            )
+        ],
+        coverage=["current"],
+    )
+    cited = DraftProseOutput(
+        prose=(
+            f"{child.name} is a {expected}-year-old student. "
+            "Records list the legal name Emma Rose Callahan."
+        ),
+        statements=[
+            DraftStatement(
+                statement=f"{child.name} is a {expected}-year-old student.",
+                fact_id=COMPUTED_AGE_FACT_ID,
+            ),
+            DraftStatement(
+                statement="Records list the legal name Emma Rose Callahan.",
+                fact_id=name_fact_id,
+            ),
+        ],
+        coverage=["current"],
+    )
+
+    # (a) Validator flags the uncited current-age claim.
+    bad_section = ReportSection(
+        section="history",
+        prose=uncited.prose,
+        facts=[
+            SourcedFact(
+                statement=uncited.statements[0].statement,
+                fact_id=name_fact_id,
+                source_id="doc_01",
+                source_date="2024-10-02",
+                life_stage="current",
+            )
+        ],
+        conflicts=[],
+        coverage=["current"],
+    )
+    flagged = False
+    try:
+        validate_age_consistency(
+            bad_section,
+            dob=child.dob,
+            evaluation_date=child.evaluation_date,
+            ledger=ledger,
+        )
+    except ValueError as exc:
+        flagged = "f_computed_age_years" in str(exc) or "does not cite derived" in str(exc)
+        ok &= check("validator flags missing cite", flagged, f"raised: {exc}")
+    if not flagged:
+        ok &= check("validator flags missing cite", False, "expected ValueError")
+
+    class SequencedStubProvider:
+        def __init__(self, drafts: list[DraftProseOutput]) -> None:
+            self._drafts = list(drafts)
+            self.draft_calls = 0
+            self.entailment_calls = 0
+
+        def complete_structured(self, *, model, system, user, schema, temperature=None):
+            del model, system, user, temperature
+            name = getattr(schema, "__name__", "")
+            if name == "DraftProseOutput":
+                if not self._drafts:
+                    raise ValueError("stub draft queue empty")
+                data = self._drafts.pop(0)
+                self.draft_calls += 1
+                return StructuredResult(
+                    data=data, total_tokens=10, prompt_tokens=8, completion_tokens=2
+                )
+            if name == "EntailmentJudgment":
+                self.entailment_calls += 1
+                return StructuredResult(
+                    data=EntailmentJudgment(supported=True, rationale="stub"),
+                    total_tokens=3,
+                    prompt_tokens=2,
+                    completion_tokens=1,
+                )
+            raise ValueError(f"unexpected schema {name}")
+
+    # (b) First attempt uncited → fail; second cited → accepted.
+    recover_stub = SequencedStubProvider([uncited, cited])
+
+    def _recover(_attempt: int):
+        return draft_section(recover_stub, body)
+
+    recovered = run_with_validation_retries(
+        _recover,
+        max_attempts=VALIDATION_RETRY_ATTEMPTS,
+        failure_prefix="Draft failed validation after retry",
+    )
+    ok &= check(
+        "retry recovers",
+        recovered.section_populated is True and recovered.answer is not None,
+        f"populated={recovered.section_populated}",
+    )
+    ok &= check(
+        "two draft calls",
+        recover_stub.draft_calls == 2,
+        f"draft_calls={recover_stub.draft_calls}",
+    )
+    cited_ids = [f.fact_id for f in (recovered.answer.facts if recovered.answer else [])]
+    ok &= check(
+        "recovered cites derived age",
+        COMPUTED_AGE_FACT_ID in cited_ids,
+        f"fact_ids={cited_ids}",
+    )
+    ok &= check(
+        "derived row is computed",
+        age_fact.source_id == COMPUTED_SOURCE_ID and age_fact.derivation == AGE_DERIVATION,
+        f"source={age_fact.source_id} derivation={age_fact.derivation}",
+    )
+
+    # (c) Exhaust budget on permanent miss → HTTP 502.
+    exhaust_stub = SequencedStubProvider([uncited, uncited])
+
+    def _exhaust(_attempt: int):
+        return draft_section(exhaust_stub, body)
+
+    exhausted = False
+    try:
+        run_with_validation_retries(
+            _exhaust,
+            max_attempts=VALIDATION_RETRY_ATTEMPTS,
+            failure_prefix="Draft failed validation after retry",
+        )
+    except HTTPException as exc:
+        exhausted = exc.status_code == 502 and "after retry" in str(exc.detail)
+        ok &= check("exhaust raises 502", exhausted, f"status={exc.status_code} detail={exc.detail}")
+    if not exhausted:
+        ok &= check("exhaust raises 502", False, "expected HTTPException 502")
+    ok &= check(
+        "exhaust used full budget",
+        exhaust_stub.draft_calls == VALIDATION_RETRY_ATTEMPTS,
+        f"draft_calls={exhaust_stub.draft_calls}",
+    )
+    ok &= check(
+        "ledger fact count scaled",
+        len(ledger.facts) >= 20,
+        f"n_facts={len(ledger.facts)}",
+    )
+    return ok
+
+
 def test_draft_smoke() -> bool:
     """Stage 4 live smoke: tiny ledger → /draft with review queue + entailment."""
 
@@ -3853,6 +4135,7 @@ def main() -> int:
     results.append(("extract.chunking", test_chunking_unit()))
     results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
+    results.append(("draft.age_cite_retry", test_draft_age_cite_retry_unit()))
     results.append(("draft.smoke", test_draft_smoke()))
     results.append(("extract.stage25", test_extract_stage25()))
     results.append(("stage45.verification", test_stage45_verification()))
