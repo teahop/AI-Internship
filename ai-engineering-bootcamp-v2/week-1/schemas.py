@@ -89,7 +89,12 @@ class Fact(BaseModel):
         ),
     )
     value: str = Field(description="Normalized value used for comparison")
-    value_text: str = Field(description="The claim in the source's own words")
+    value_text: str = Field(
+        description=(
+            "Short quote of the claim in the source's own words (one sentence; "
+            "capped at extraction — never a pasted passage)"
+        ),
+    )
     qualifier: str | None = Field(
         default=None,
         description=(

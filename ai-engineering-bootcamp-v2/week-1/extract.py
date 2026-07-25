@@ -14,7 +14,7 @@ from derived import (
     is_synthetic_source_id,
     strip_synthetic_facts,
 )
-from normalize import normalize_qualifier, normalize_value
+from normalize import clip_value_text, normalize_qualifier, normalize_value
 from predicates import (
     CANONICAL_SUBJECTS,
     PREDICATE_VOCABULARY,
@@ -296,7 +296,7 @@ def draft_to_fact(
         subject=subject,
         predicate=predicate,
         value=value,
-        value_text=draft.value_text.strip(),
+        value_text=clip_value_text(draft.value_text),
         qualifier=qualifier,
         assertion=_finalize_assertion(draft, predicate=predicate, value=value),
         source_id=source.id,

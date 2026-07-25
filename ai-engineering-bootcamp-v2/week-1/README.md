@@ -148,6 +148,10 @@ their payload belongs to Assessment Results (Phase 3). Default `doc_class` is
 de-duplicated on subject+predicate+qualifier+value+source_id so one call stays
 under model limits.
 
+**`value_text` is capped to a short quote.** Extraction clips to
+`VALUE_TEXT_MAX_CHARS` (sentence-aware) so the accumulating ledger stays KB-scale
+— never a pasted passage.
+
 ## Smoke tests
 
 ```bash

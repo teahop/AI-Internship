@@ -24,7 +24,7 @@ from extract import (
     split_source_content,
 )
 from grouping import record_value_conflicts
-from normalize import normalize_qualifier, normalize_value
+from normalize import clip_value_text, normalize_qualifier, normalize_value, VALUE_TEXT_MAX_CHARS
 from predicates import (
     PREDICATES,
     PREDICATE_VOCABULARY,
@@ -604,6 +604,59 @@ def test_normalize_unit() -> bool:
         "allergy distinct",
         known != undiagnosed,
         f"known={known!r} undiagnosed={undiagnosed!r} stay distinct",
+    )
+
+    # Stage 6.4: value_text is a short quote — never a pasted passage.
+    short = "Student name on header: Justin M."
+    ok &= check(
+        "short value_text unchanged",
+        clip_value_text(short) == short,
+        f"clipped={clip_value_text(short)!r}",
+    )
+    passage = (
+        "The cumulative file contains an extended narrative passage that restates "
+        "the entire developmental history across multiple pages, including pregnancy "
+        "details, neonatal course, early milestones, preschool placements, and every "
+        "subsequent school year intervention note that a clinician might otherwise paste "
+        "wholesale into the ledger as value_text. "
+        "It continues with more filler about attendance patterns and nurse visits."
+    )
+    clipped = clip_value_text(passage)
+    ok &= check(
+        "passage clipped",
+        len(clipped) <= VALUE_TEXT_MAX_CHARS and clipped != passage,
+        f"len={len(clipped)} limit={VALUE_TEXT_MAX_CHARS}",
+    )
+    ok &= check(
+        "sentence-aware clip",
+        clipped.endswith(".") or clipped.endswith("…"),
+        f"clipped ends={clipped[-20:]!r}",
+    )
+    long_draft = ExtractedFactDraft(
+        subject="child",
+        predicate="developmental_history",
+        value="typical",
+        value_text=passage,
+        qualifier=None,
+        assertion="asserted",
+        reporter=None,
+        life_stage="current",
+        grade=None,
+        confidence="stated",
+    )
+    source = Source(
+        id="parent-dev-2026",
+        type="parent",
+        date="2026-06-01",
+        label="Parent form",
+        content=passage,
+    )
+    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    fact = draft_to_fact(long_draft, fact_id="f_parent-dev-2026_001", source=source, child=child)
+    ok &= check(
+        "extract write-time cap",
+        len(fact.value_text) <= VALUE_TEXT_MAX_CHARS,
+        f"value_text len={len(fact.value_text)}",
     )
     return ok
 

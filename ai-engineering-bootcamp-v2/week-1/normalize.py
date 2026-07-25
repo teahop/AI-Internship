@@ -5,11 +5,39 @@ Rules of thumb:
 - Grades → canonical token ("K", "1", "2", …) — never derived from age
 - Status / classification strings stay distinct (e.g. undiagnosed ≠ known)
 - Prefer the model's value when already normalized; fall back to value_text
+- value_text is a short quote (one sentence), never a pasted passage — clipped here
 """
 
 from __future__ import annotations
 
 import re
+
+# Keeps the accumulating ledger KB-scale (spec §6.1 / Stage 6.4).
+VALUE_TEXT_MAX_CHARS = 240
+
+
+def clip_value_text(text: str, *, limit: int = VALUE_TEXT_MAX_CHARS) -> str:
+    """
+    Cap value_text to a short quote.
+
+    Prefers ending on a sentence or word boundary inside the limit.
+    """
+
+    cleaned = (text or "").strip()
+    if len(cleaned) <= limit:
+        return cleaned
+
+    window = cleaned[:limit]
+    for sep in (". ", "? ", "! ", "; "):
+        idx = window.rfind(sep)
+        if idx >= limit // 3:
+            return window[: idx + 1].strip()
+
+    idx = window.rfind(" ")
+    if idx >= limit // 2:
+        return window[:idx].rstrip() + "…"
+    return window.rstrip() + "…"
+
 
 _WORD_NUMBERS: dict[str, int] = {
     "zero": 0,
