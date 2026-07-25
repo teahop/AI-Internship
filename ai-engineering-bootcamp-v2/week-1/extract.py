@@ -332,6 +332,13 @@ def build_ledger(
         known_source_ids |= {s.id for s in prior_ledger.sources}
 
     for source in sources:
+        # Score reports are deferred to Assessment Results (§6.4 / Phase 3).
+        # Record the source for coverage; produce no narrative history facts.
+        if source.doc_class == "score_report":
+            tokens_by_source[source.id] = 0
+            facts_by_source[source.id] = []
+            continue
+
         drafts, total, p_tok, c_tok = extract_source_facts(
             provider, child=child, source=source, model=model
         )

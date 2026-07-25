@@ -1931,7 +1931,136 @@ def test_ingest_unit(base: str) -> bool:
         f"source_date={sug.get('source_date')}",
     )
     ok &= check("label", bool(sug.get("label")), f"label={sug.get('label')}")
+    ok &= check(
+        "doc_class",
+        sug.get("doc_class") in {"narrative", "score_report"},
+        f"doc_class={sug.get('doc_class')}",
+    )
     print(f"  suggestion={sug}  tokens={data.get('tokens_used')}  cost={data.get('cost_usd')}")
+    return ok
+
+
+def test_score_report_triage_unit() -> bool:
+    """
+    Stage 6.2: score_report sources are recorded but yield zero narrative facts.
+    """
+
+    print("\n=== Stage 6.2 unit: score_report triage ===")
+    from extract import build_ledger
+
+    ok = True
+    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    narrative = Source(
+        id="nurse-health-2024",
+        type="school",
+        date="2024-09-12",
+        label="School Nurse Health Report",
+        content="Student name on header: Justin M. Known peanut allergy.",
+        doc_class="narrative",
+    )
+    score = Source(
+        id="wisc-v-2026",
+        type="assessment",
+        date="2026-07-01",
+        label="WISC-V score report",
+        content=(
+            "WISC-V Score Summary. FSIQ=98 (45th %ile). VCI=102. "
+            "Working Memory Index=86. Processing Speed=91. "
+            "Subtest scaled scores: Similarities 11, Vocabulary 10, Digit Span 7."
+        ),
+        doc_class="score_report",
+    )
+
+    # Pure merge path: score_report contributes source row, zero facts.
+    score_only = merge_ledger_with_extracted(
+        child=child,
+        prior=None,
+        new_sources=[score],
+        new_facts_by_source={score.id: []},
+    )
+    ok &= check(
+        "score source present",
+        any(s.id == score.id for s in score_only.sources),
+        f"sources={[s.id for s in score_only.sources]}",
+    )
+    narrative_from_score = [f for f in score_only.facts if f.source_id == score.id]
+    ok &= check(
+        "zero narrative facts from score",
+        len(narrative_from_score) == 0,
+        f"facts_from_score={len(narrative_from_score)}",
+    )
+
+    # Live extract path: score_report must not call the model for that source.
+    class _BoomProvider:
+        def complete_structured(self, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("score_report must not invoke extraction")
+
+    (
+        ledger,
+        tokens_by_source,
+        *_rest,
+    ) = build_ledger(
+        _BoomProvider(),  # type: ignore[arg-type]
+        child=child,
+        sources=[score],
+        model="gpt-4o-mini",
+    )
+    ok &= check(
+        "score tokens zero",
+        tokens_by_source.get(score.id) == 0,
+        f"tokens_by_source={tokens_by_source}",
+    )
+    ok &= check(
+        "score on ledger",
+        {s.id for s in ledger.sources} == {score.id}
+        and all(s.doc_class == "score_report" for s in ledger.sources if s.id == score.id),
+        f"sources={[(s.id, s.doc_class) for s in ledger.sources]}",
+    )
+    ok &= check(
+        "no score facts",
+        all(f.source_id != score.id for f in ledger.facts),
+        f"facts={[f.id for f in ledger.facts]}",
+    )
+
+    # Mixed: narrative still extracts; score still skipped (mock only the score path
+    # by extracting narrative via merge of hand facts + score via build_ledger skip).
+    nurse_fact = Fact(
+        id=fact_id_for_source(narrative.id, 1),
+        subject="child",
+        predicate="legal_name",
+        value="Justin M.",
+        value_text="Student name on header: Justin M.",
+        qualifier=None,
+        assertion="asserted",
+        source_id=narrative.id,
+        source_date=narrative.date,
+        reporter=None,
+        life_stage="current",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    mixed = merge_ledger_with_extracted(
+        child=child,
+        prior=None,
+        new_sources=[narrative, score],
+        new_facts_by_source={narrative.id: [nurse_fact], score.id: []},
+    )
+    ok &= check(
+        "mixed sources",
+        {s.id for s in mixed.sources} == {narrative.id, score.id},
+        f"sources={[s.id for s in mixed.sources]}",
+    )
+    ok &= check(
+        "mixed keeps narrative facts",
+        any(f.source_id == narrative.id for f in mixed.facts),
+        "narrative facts missing",
+    )
+    ok &= check(
+        "mixed skips score facts",
+        all(f.source_id != score.id for f in mixed.facts),
+        "score produced narrative facts",
+    )
     return ok
 
 
@@ -2842,6 +2971,7 @@ def main() -> int:
     results.append(("validators.provenance", test_provenance_validator_unit()))
     results.append(("stage45.unit", test_derived_and_coverage_unit()))
     results.append(("extract.incremental", test_incremental_extract_unit()))
+    results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
     results.append(("draft.smoke", test_draft_smoke()))
     results.append(("extract.stage25", test_extract_stage25()))

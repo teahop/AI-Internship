@@ -37,8 +37,8 @@ artifact; the service stores nothing. No prior ledger = build from scratch
 
 | Stage | Endpoint | Model? | Output |
 |-------|----------|--------|--------|
-| Classify | `POST /ingest` | 1 cheap call | `{source_type, source_date, label}` for **user confirmation** (never silent) |
-| Extract | `POST /extract` | 1 call / new source | `Ledger` (merged), `GapReport`, `timelines` (computed view) |
+| Classify | `POST /ingest` | 1 cheap call | `{source_type, source_date, label, doc_class}` for **user confirmation** (never silent) |
+| Extract | `POST /extract` | 1 call / new narrative source | `Ledger` (merged), `GapReport`, `timelines` (computed view) |
 | Conflicts | `POST /conflicts` | none | record `conflicts`, perspectival `variance`, timelines |
 | Draft | `POST /draft` | draft + per-fact entailment | `ReportSection` + review queue |
 | Ask | `POST /ask` | full pipeline | Same course contract: `answer`, `tokens_used`, `cost_usd` |
@@ -136,6 +136,12 @@ A ~28-document case exceeds model limits both per-file and in aggregate. Stage 6
 makes the ledger the accumulating artifact Molly re-uploads — same merge as loading
 a prior evaluation's ledger and extending it. Fact ids are namespaced by source;
 derived age is recomputed on every merge against the current `evaluation_date`.
+
+**Ingest triages `doc_class` so score reports skip history extraction.**
+`score_report` sources (cognitive / achievement / rating-scale batteries) are
+recorded on the ledger for coverage but produce no narrative history facts —
+their payload belongs to Assessment Results (Phase 3). Default `doc_class` is
+`narrative` for backward compatibility.
 
 ## Smoke tests
 

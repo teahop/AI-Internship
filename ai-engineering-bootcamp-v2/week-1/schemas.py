@@ -23,6 +23,7 @@ SourceType = Literal[
     "prior_eval",
     "other",
 ]
+DocClass = Literal["narrative", "score_report"]
 SectionName = Literal["history"]
 Temporality = Literal["durable", "as_of"]
 FactConfidence = Literal["stated", "hedged"]
@@ -46,6 +47,13 @@ class Source(BaseModel):
     date: str = Field(description="ISO date YYYY-MM-DD when this source was created")
     label: str = Field(description="Short human label, e.g. Parent developmental history")
     content: str = Field(description="Full text / notes from this source")
+    doc_class: DocClass = Field(
+        default="narrative",
+        description=(
+            "Ingest triage: narrative → history extraction; score_report → recorded "
+            "for coverage but skipped for Background & History (score facts are Phase 3)."
+        ),
+    )
 
 
 class Fact(BaseModel):
@@ -682,6 +690,12 @@ class IngestSuggestion(BaseModel):
     source_type: SourceType
     source_date: str = Field(description="ISO date YYYY-MM-DD guessed from the document")
     label: str = Field(description="Short human label for this source")
+    doc_class: DocClass = Field(
+        description=(
+            "narrative = history-relevant prose; score_report = cognitive/achievement/"
+            "rating-scale battery (skip narrative extraction for Background & History)."
+        ),
+    )
 
 
 class IngestResponse(BaseModel):
@@ -690,7 +704,7 @@ class IngestResponse(BaseModel):
     suggestion: IngestSuggestion
     confirm_required: Literal[True] = True
     note: str = (
-        "Confirm source_type, source_date, and label before adding to the case. "
+        "Confirm source_type, source_date, label, and doc_class before adding to the case. "
         "A wrong date is a provenance failure."
     )
     tokens_used: int

@@ -14,6 +14,11 @@ Return only:
   use the first of that month; if no date appears, use today's date from the user message
   and keep label honest that the date was not found
 - label: short human label (e.g. "School Nurse Health Report", "Parent developmental history")
+- doc_class: one of narrative, score_report
+  - score_report = cognitive / achievement / processing batteries or multi-rater rating-scale
+    score printouts (WISC, WJ, BASC, ASRS, etc.) whose payload is test scores
+  - narrative = everything else with history-relevant prose (forms, interviews, IEPs,
+    health notes, observations, prior eval write-ups)
 
 Never invent clinical content. Classification only. Synthetic data.
 """.strip()
