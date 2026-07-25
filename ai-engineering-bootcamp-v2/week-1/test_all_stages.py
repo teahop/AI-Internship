@@ -789,6 +789,56 @@ def test_extract_isolation_unit() -> bool:
     )
     ok &= check("null value coerced empty", nullish.value == "", f"value={nullish.value!r}")
     ok &= check("null draft skippable", _draft_is_skippable(nullish), "expected skip")
+
+    blank_dob = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "dob",
+            "value": "__________",
+            "value_text": "Date of birth: __________",
+            "assertion": "denied",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    bare_doc_date = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "dob",
+            "value": sources[0].date,
+            "value_text": "Agreement dated " + sources[0].date,
+            "assertion": "asserted",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    real_dob = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "dob",
+            "value": "2010-03-22",
+            "value_text": "DOB: 3/22/10",
+            "assertion": "asserted",
+            "life_stage": "birth",
+            "confidence": "stated",
+        }
+    )
+    ok &= check(
+        "placeholder dob skipped",
+        _draft_is_skippable(blank_dob, sources[0]),
+        "__________ should skip",
+    )
+    ok &= check(
+        "bare source-date dob skipped",
+        _draft_is_skippable(bare_doc_date, sources[0]),
+        f"value={bare_doc_date.value} should skip",
+    )
+    ok &= check(
+        "real dob kept",
+        not _draft_is_skippable(real_dob, sources[0]),
+        "anchored DOB must not skip",
+    )
+
     ok_fact = ExtractedFactDraft(
         subject="child",
         predicate="legal_name",

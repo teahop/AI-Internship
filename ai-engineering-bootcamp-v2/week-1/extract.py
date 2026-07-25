@@ -264,13 +264,54 @@ def _finalize_subject(draft: ExtractedFactDraft, source: Source, predicate: str)
     return subject if subject in CANONICAL_SUBJECTS else "child"
 
 
-def _draft_is_skippable(draft: ExtractedFactDraft) -> bool:
+def _draft_is_skippable(draft: ExtractedFactDraft, source: Source | None = None) -> bool:
     """True when a draft has no usable value — skip, do not abort the source."""
 
     raw = (draft.value or "").strip()
     if not raw or raw.lower() in {"null", "none-stated", "n/a", "undefined"}:
         return True
-    # value_text alone is not enough; comparison value is required.
+    predicate = _resolve_predicate_name(draft)
+    if predicate == "dob" and source is not None and _is_garbage_dob(draft, source):
+        return True
+    return False
+
+
+_DOB_PLACEHOLDER_RE = re.compile(r"^[\s_\.\-/xX]+$")
+_DOB_ANCHOR_RE = re.compile(
+    r"\b(dob|d\.o\.b\.?|date of birth|born|birth\s*date|birthday|birthdate)\b",
+    re.IGNORECASE,
+)
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _is_garbage_dob(draft: ExtractedFactDraft, source: Source) -> bool:
+    """
+    Drop DOB drafts minted from blank template fields or bare document dates.
+
+    Placeholders like ``__________`` and a source's own contract/IEP date without
+    a DOB/born anchor are not birth dates (fixture_001 doc_22 finding).
+    """
+
+    value = (draft.value or "").strip()
+    value_text = (draft.value_text or "").strip()
+    blob = f"{value} {value_text}"
+
+    if not value or _DOB_PLACEHOLDER_RE.match(value) or "___" in value or "___" in value_text:
+        return True
+    if re.search(r"_{3,}|X{3,}|\.{3,}", blob):
+        return True
+
+    has_anchor = bool(_DOB_ANCHOR_RE.search(blob))
+    # Bare ISO equal to the document date with no DOB language → document date, not DOB.
+    if _ISO_DATE_RE.match(value) and value == source.date and not has_anchor:
+        return True
+    # "Date of birth:" with empty / placeholder fill and no real date tokens.
+    if re.search(r"date of birth\s*:?\s*$", value_text, re.IGNORECASE) and not re.search(
+        r"\d{4}|\d{1,2}[/-]\d{1,2}", value
+    ):
+        return True
+    if not has_anchor and not re.search(r"\d", value):
+        return True
     return False
 
 
@@ -378,7 +419,7 @@ def extract_source_to_facts(
 
     facts: list[Fact] = []
     for draft in drafts:
-        if _draft_is_skippable(draft):
+        if _draft_is_skippable(draft, source):
             continue
         try:
             facts.append(
