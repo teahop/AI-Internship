@@ -117,7 +117,7 @@ def _extract_wrong_current_ages(text: str, expected: int) -> list[tuple[int, str
     return wrong
 
 
-def _has_current_age_mention(text: str, expected: int) -> bool:
+def has_current_age_mention(text: str, expected: int) -> bool:
     seen_spans: set[tuple[int, int]] = set()
     for pattern in _CURRENT_AGE_PATTERNS:
         for match in pattern.finditer(text):
@@ -132,6 +132,10 @@ def _has_current_age_mention(text: str, expected: int) -> bool:
                 continue
             return True
     return False
+
+
+# Back-compat alias for older call sites / tests.
+_has_current_age_mention = has_current_age_mention
 
 
 def derived_age_facts(facts: list[Fact]) -> list[Fact]:
@@ -177,8 +181,8 @@ def validate_age_consistency(
             for f in section.facts
             if f.fact_id == age_fact.id
         ]
-        prose_mentions_age = _has_current_age_mention(section.prose, expected) or any(
-            _has_current_age_mention(f.statement, expected) for f in section.facts
+        prose_mentions_age = has_current_age_mention(section.prose, expected) or any(
+            has_current_age_mention(f.statement, expected) for f in section.facts
         )
         if prose_mentions_age and not citing:
             raise ValueError(
