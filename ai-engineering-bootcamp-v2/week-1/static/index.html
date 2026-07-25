@@ -48,6 +48,33 @@
       margin-top: 0.5rem;
     }
     .fields label { margin-top: 0; }
+    .case-header {
+      margin: 0.75rem 0 0.25rem;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid #c5d6d6;
+      border-radius: 6px;
+      background: #fff;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      gap: 0.65rem 1rem;
+    }
+    .case-header.empty {
+      color: #666;
+      font-size: 0.95rem;
+      display: block;
+    }
+    .case-header .case-field-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #2a6f6f;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.15rem;
+    }
+    .case-header .case-field-value {
+      font-size: 0.95rem;
+    }
     input[type="text"], input[type="date"], select, textarea {
       width: 100%;
       box-sizing: border-box;
@@ -182,27 +209,15 @@
     <p class="pipe">sources → /extract → LEDGER + gap + timelines → /conflicts → /draft → prose</p>
 
     <p class="hint" id="emptyHint">
-      Session starts empty. Load a fixture above, or enter child data and sources directly.
+      Session starts empty. Load a fixture to set the case (name / DOB / evaluation date come from the fixture).
     </p>
 
-    <div class="fields">
-      <div>
-        <label for="childName">Name</label>
-        <input id="childName" type="text" value="" placeholder="e.g. Emma Rose Callahan" autocomplete="off" />
-      </div>
-      <div>
-        <label for="dob">Date of birth</label>
-        <input id="dob" type="date" value="" />
-      </div>
-      <div>
-        <label for="evalDate">Evaluation date</label>
-        <input id="evalDate" type="date" value="" />
-      </div>
-    </div>
+    <div class="case-header empty" id="caseHeader">No case loaded — pick a fixture.</div>
 
     <div class="row">
       <button type="button" class="ghost" id="loadHistoryBtn">Load history fixture</button>
       <button type="button" class="ghost" id="loadHealthBtn">Load health-conflict fixture</button>
+      <button type="button" class="ghost" id="loadFixture001Btn">Load fixture_001 (E.C.)</button>
       <button type="button" class="ghost" id="addSourceBtn">Add source</button>
       <button type="button" class="ghost danger" id="clearBtn">Clear</button>
     </div>
@@ -223,7 +238,7 @@
     <div class="row">
       <button type="button" id="runBtn">Run pipeline</button>
       <button type="button" class="ghost" id="askBtn">Run /ask only (course contract)</button>
-      <span id="status">Empty — load a fixture or enter a case.</span>
+      <span id="status">Empty — load a fixture to start.</span>
     </div>
 
     <div class="stage" id="stageExtract">
@@ -264,9 +279,7 @@
     const SOURCE_TYPES = [
       "assessment", "school", "parent", "teacher", "observation", "prior_eval", "other"
     ];
-    const childNameEl = document.getElementById("childName");
-    const dobEl = document.getElementById("dob");
-    const evalEl = document.getElementById("evalDate");
+    const caseHeaderEl = document.getElementById("caseHeader");
     const sourcesEl = document.getElementById("sources");
     const runBtn = document.getElementById("runBtn");
     const askBtn = document.getElementById("askBtn");
@@ -287,6 +300,8 @@
     const ingestPanel = document.getElementById("ingestPanel");
     let sourceSeq = 0;
     let lastIngest = null;
+    /** @type {{name: string, dob: string, evaluation_date: string} | null} */
+    let currentChild = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -326,12 +341,20 @@
       contentArea.value = data.content || "";
       const removeBtn = el("button", { type: "button", className: "ghost danger", text: "Remove" });
       const card = el("div", { className: "source-card" });
+      card.dataset.docClass = data.doc_class || "narrative";
       removeBtn.addEventListener("click", () => {
         card.remove();
         updateSourcesEmptyHint();
       });
+      const docClassNote =
+        data.doc_class === "score_report"
+          ? el("span", {
+              text: "score_report (skipped for history extract)",
+              style: "font-size:0.8rem;color:#666;font-weight:500;",
+            })
+          : el("span", { text: "Source" });
       card.append(
-        el("div", { className: "card-head" }, [el("span", { text: "Source" }), removeBtn]),
+        el("div", { className: "card-head" }, [docClassNote, removeBtn]),
         el("div", { className: "fields" }, [
           field("Id", idInput),
           field("Type", typeSel),
@@ -349,11 +372,31 @@
       const hint = document.getElementById("sourcesEmptyHint");
       if (hint) hint.style.display = sourcesEl.children.length ? "none" : "block";
     }
-    function setChild(child) {
-      if (!child) return;
-      childNameEl.value = child.name || "";
-      dobEl.value = child.dob || "";
-      evalEl.value = child.evaluation_date || "";
+    function renderCaseHeader(child) {
+      currentChild = child
+        ? {
+            name: child.name || "",
+            dob: child.dob || "",
+            evaluation_date: child.evaluation_date || "",
+          }
+        : null;
+      caseHeaderEl.innerHTML = "";
+      if (!currentChild || !currentChild.name) {
+        caseHeaderEl.className = "case-header empty";
+        caseHeaderEl.textContent = "No case loaded — pick a fixture.";
+        return;
+      }
+      caseHeaderEl.className = "case-header";
+      const fieldBlock = (label, value) =>
+        el("div", null, [
+          el("span", { className: "case-field-label", text: label }),
+          el("span", { className: "case-field-value", text: value || "—" }),
+        ]);
+      caseHeaderEl.append(
+        fieldBlock("Name (synthetic)", currentChild.name),
+        fieldBlock("Date of birth", currentChild.dob),
+        fieldBlock("Evaluation date", currentChild.evaluation_date),
+      );
     }
     function resetPipelinePanels() {
       setEmpty(ledgerPanel, "(run pipeline)");
@@ -372,18 +415,16 @@
       lastIngest = null;
     }
     function clearSession() {
-      childNameEl.value = "";
-      dobEl.value = "";
-      evalEl.value = "";
+      renderCaseHeader(null);
       clearSources();
       sourceSeq = 0;
       resetPipelinePanels();
       statusEl.className = "";
-      statusEl.textContent = "Empty — load a fixture or enter a case.";
+      statusEl.textContent = "Empty — load a fixture to start.";
       updateSourcesEmptyHint();
     }
     function applyFixture(data) {
-      setChild(data.child);
+      renderCaseHeader(data.child);
       clearSources();
       (data.sources || []).forEach((s) => sourcesEl.appendChild(sourceCard(s)));
       resetPipelinePanels();
@@ -400,8 +441,12 @@
 
     document.getElementById("addSourceBtn").addEventListener("click", () => {
       sourcesEl.appendChild(sourceCard({
-        id: "source-" + (sourceSeq + 1), type: "other",
-        date: evalEl.value || "", label: "", content: "",
+        id: "source-" + (sourceSeq + 1),
+        type: "other",
+        date: (currentChild && currentChild.evaluation_date) || "",
+        label: "",
+        content: "",
+        doc_class: "narrative",
       }));
       updateSourcesEmptyHint();
     });
@@ -417,6 +462,12 @@
         statusEl.textContent = String(err.message || err);
       });
     });
+    document.getElementById("loadFixture001Btn").addEventListener("click", () => {
+      loadFixture("fixture_001.json").catch((err) => {
+        statusEl.className = "error";
+        statusEl.textContent = String(err.message || err);
+      });
+    });
     document.getElementById("clearBtn").addEventListener("click", () => clearSession());
     // Start empty — no auto-loaded fixture.
     clearSession();
@@ -428,6 +479,7 @@
         date: card.querySelector(".s-date").value,
         label: card.querySelector(".s-label").value.trim(),
         content: card.querySelector(".s-content").value.trim(),
+        doc_class: card.dataset.docClass || "narrative",
       }));
       if (!sources.length) throw new Error("Add at least one source.");
       for (const s of sources) {
@@ -439,14 +491,17 @@
     }
 
     function caseBody() {
-      const name = (childNameEl.value || "Alex Rivera").trim();
-      const dob = dobEl.value;
-      const evaluation_date = evalEl.value;
-      if (!dob || !evaluation_date) throw new Error("Pick a DOB and evaluation date.");
+      if (!currentChild || !currentChild.dob || !currentChild.evaluation_date) {
+        throw new Error("Load a fixture first (case name / DOB / evaluation date come from the fixture).");
+      }
       return {
         confirm_synthetic: true,
         section: "history",
-        child: { name, dob, evaluation_date },
+        child: {
+          name: currentChild.name,
+          dob: currentChild.dob,
+          evaluation_date: currentChild.evaluation_date,
+        },
         sources: collectSources(),
         model: "gpt-4o-mini",
       };

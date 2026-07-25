@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from conflicts import detect_disagreements_from_ledger
@@ -19,6 +20,7 @@ from provider import DEFAULT_MODEL, ModelProvider, compute_cost_usd
 from schemas import (
     AskRequest,
     AskResponse,
+    Child,
     ConflictsRequest,
     ConflictsResponse,
     DraftRequest,
@@ -28,6 +30,7 @@ from schemas import (
     IngestRequest,
     IngestResponse,
     ReportSection,
+    Source,
     SourcedFact,
 )
 from validators import (
@@ -145,17 +148,47 @@ def favicon() -> FileResponse:
     return FileResponse(_DIR / "favicon.png", media_type="image/png")
 
 
-@app.get("/fixtures/{name}")
-def get_fixture(name: str) -> FileResponse:
+@app.get("/fixtures/{name}", response_model=None)
+def get_fixture(name: str) -> FileResponse | JSONResponse:
     """Serve synthetic fixtures for the multi-source home UI."""
 
     safe = Path(name).name
+    # Per-file case: assemble ask-shaped payload from the manifest (do not
+    # inline ~900KB of duplicated content into a single static file).
+    if safe in {"fixture_001", "fixture_001.json"}:
+        return JSONResponse(_assemble_fixture_001_ask())
+
     if not safe.endswith(".json"):
         raise HTTPException(status_code=404, detail="Fixture not found")
     path = _FIXTURES / safe
     if not path.is_file() or not path.resolve().is_relative_to(_FIXTURES.resolve()):
         raise HTTPException(status_code=404, detail="Fixture not found")
     return FileResponse(path, media_type="application/json")
+
+
+def _assemble_fixture_001_ask() -> dict:
+    """Build an /ask-shaped body from fixtures/fixture_001/manifest.json."""
+
+    man_path = _FIXTURES / "fixture_001" / "manifest.json"
+    if not man_path.is_file():
+        raise HTTPException(status_code=404, detail="fixture_001 manifest not found")
+
+    man = json.loads(man_path.read_text(encoding="utf-8"))
+    child = Child.model_validate(man["child"]).model_dump()
+    sources: list[dict] = []
+    for f in man["files"]:
+        fx_path = man_path.parent / f["fixture"]
+        if not fx_path.is_file():
+            raise HTTPException(status_code=404, detail=f"Missing {f['fixture']}")
+        fx = json.loads(fx_path.read_text(encoding="utf-8"))
+        sources.append(Source.model_validate(fx["sources"][0]).model_dump())
+    return {
+        "confirm_synthetic": True,
+        "section": man.get("section") or "history",
+        "child": child,
+        "sources": sources,
+        "model": "gpt-4o-mini",
+    }
 
 
 @app.get("/health")

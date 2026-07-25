@@ -19,6 +19,24 @@ WORKDIR = Path(__file__).resolve().parent
 WORKDIR_CMD = "ai-engineering-bootcamp-v2/week-1"  # path from repo root
 HISTORY_FIXTURE = WORKDIR / "fixtures" / "synthetic_history_case.json"
 HEALTH_FIXTURE = WORKDIR / "fixtures" / "synthetic_health_conflict_case.json"
+FIXTURE_001_MANIFEST = WORKDIR / "fixtures" / "fixture_001" / "manifest.json"
+
+
+def _assemble_fixture_001() -> dict:
+    """Ask-shaped payload from the per-file fixture_001 case."""
+
+    man = json.loads(FIXTURE_001_MANIFEST.read_text(encoding="utf-8"))
+    sources = []
+    for f in man["files"]:
+        fx = json.loads((FIXTURE_001_MANIFEST.parent / f["fixture"]).read_text(encoding="utf-8"))
+        sources.append(fx["sources"][0])
+    return {
+        "confirm_synthetic": True,
+        "section": man.get("section") or "history",
+        "child": man["child"],
+        "sources": sources,
+        "model": "gpt-4o-mini",
+    }
 
 STAGES = [
     {
@@ -90,8 +108,11 @@ def build_question_payload(
 
 
 def load_fixture_payload(name: str, force_bad_age: bool, model: str | None) -> dict:
-    path = HEALTH_FIXTURE if name == "health" else HISTORY_FIXTURE
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    if name == "fixture_001":
+        payload = _assemble_fixture_001()
+    else:
+        path = HEALTH_FIXTURE if name == "health" else HISTORY_FIXTURE
+        payload = json.loads(path.read_text(encoding="utf-8"))
     if force_bad_age:
         payload["force_bad_age"] = True
     if model:
@@ -186,12 +207,12 @@ for tab, stage in zip(tabs, STAGES):
         else:
             fixture_choice = st.selectbox(
                 "Fixture",
-                ["history", "health"],
-                format_func=lambda n: (
-                    "synthetic_history_case.json"
-                    if n == "history"
-                    else "synthetic_health_conflict_case.json"
-                ),
+                ["history", "health", "fixture_001"],
+                format_func=lambda n: {
+                    "history": "synthetic_history_case.json",
+                    "health": "synthetic_health_conflict_case.json",
+                    "fixture_001": "fixture_001 (E.C. per-file case)",
+                }[n],
                 key=f"fixture_{stage['num']}",
             )
             if "force_bad_age" in stage["fields"]:
