@@ -67,7 +67,7 @@ class Fact(BaseModel):
     grade is independent of age and life_stage — never infer one from another.
     """
 
-    id: str = Field(description='Stable id, e.g. "f_001"')
+    id: str = Field(description='Stable id namespaced by source, e.g. "f_nurse-health-2024_001"')
     subject: str = Field(
         description=(
             'Who/what the claim is about, e.g. "child", "mother", "school". '
@@ -289,13 +289,27 @@ class ExtractRequest(BaseModel):
     Domain request for /extract.
 
     confirm_synthetic must be true — this OpenAI build never accepts real cases.
+    Optional prior_ledger enables incremental merge (Rev 2.2 / Stage 6.1).
     """
 
     confirm_synthetic: Literal[True] = Field(
         description="Must be true. Refuses real PHI/PII cases; OpenAI runtime is synthetic-only.",
     )
     child: Child
-    sources: list[Source] = Field(min_length=1)
+    sources: list[Source] = Field(
+        min_length=1,
+        description=(
+            "One new typed source (or a short list). Unit of work is one file; "
+            "facts are merged into prior_ledger when provided."
+        ),
+    )
+    prior_ledger: Ledger | None = Field(
+        default=None,
+        description=(
+            "Accumulating ledger Molly holds. When set, extract the new source(s) "
+            "and merge (replace by source_id). When omitted, build from scratch."
+        ),
+    )
     model: str | None = None
 
 

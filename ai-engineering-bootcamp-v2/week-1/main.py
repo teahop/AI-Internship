@@ -201,8 +201,10 @@ def ingest(body: IngestRequest) -> IngestResponse:
 @app.post("/extract")
 def extract(body: ExtractRequest) -> ExtractResponse:
     """
-    Build a case Ledger: one model call per source, atomic facts only.
+    Build or grow a case Ledger: one model call per new source, atomic facts only.
 
+    Optional prior_ledger → extract new source(s), merge by source_id, recompute
+    derived facts. No prior → build from scratch (batch / demo path).
     Returns ledger + gap_report + timelines (computed view). Nothing persisted.
     """
 
@@ -223,6 +225,7 @@ def extract(body: ExtractRequest) -> ExtractResponse:
             child=body.child,
             sources=body.sources,
             model=model,
+            prior_ledger=body.prior_ledger,
         )
     except (ValidationError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=f"Extraction failed: {exc}") from exc

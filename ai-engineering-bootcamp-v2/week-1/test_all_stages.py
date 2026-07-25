@@ -13,7 +13,13 @@ from pathlib import Path
 
 import httpx
 
-from extract import _extraction_user_payload, build_ledger, draft_to_fact
+from extract import (
+    _extraction_user_payload,
+    build_ledger,
+    draft_to_fact,
+    fact_id_for_source,
+    merge_ledger_with_extracted,
+)
 from grouping import record_value_conflicts
 from normalize import normalize_qualifier, normalize_value
 from predicates import (
@@ -1665,6 +1671,189 @@ def test_stage0_via_extract_conflicts() -> bool:
     return ok
 
 
+def test_incremental_extract_unit() -> bool:
+    """
+    Stage 6.1: merge by source_id, stable ids across unrelated merges,
+    replace-on-reingest, derived recomputation against evaluation_date.
+    """
+
+    print("\n=== Stage 6.1 unit: incremental /extract merge ===")
+    from conflicts import detect_disagreements
+    from derived import AGE_DERIVATION, COMPUTED_AGE_FACT_ID, REQUEST_DOB_FACT_ID
+    from validators import compute_age_years
+
+    ok = True
+    child = Child(initials="J.M.", dob="2015-04-22", evaluation_date="2026-07-16")
+    nurse = Source(
+        id="nurse-health-2024",
+        type="school",
+        date="2024-09-12",
+        label="School Nurse Health Report",
+        content="Student name on header: Justin M.",
+    )
+    iep = Source(
+        id="iep-health-2025",
+        type="school",
+        date="2025-03-18",
+        label="IEP health pages",
+        content="IEP body student name: Jason M.",
+    )
+    nurse_fact = Fact(
+        id=fact_id_for_source(nurse.id, 1),
+        subject="child",
+        predicate="legal_name",
+        value="Justin M.",
+        value_text="Student name on header: Justin M.",
+        qualifier=None,
+        assertion="asserted",
+        source_id=nurse.id,
+        source_date=nurse.date,
+        reporter=None,
+        life_stage="current",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    iep_fact = Fact(
+        id=fact_id_for_source(iep.id, 1),
+        subject="child",
+        predicate="legal_name",
+        value="Jason M.",
+        value_text="IEP body student name: Jason M.",
+        qualifier=None,
+        assertion="asserted",
+        source_id=iep.id,
+        source_date=iep.date,
+        reporter=None,
+        life_stage="current",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+
+    # Accumulation: A alone, then B with prior → A+B and cross-source conflict.
+    ledger_a = merge_ledger_with_extracted(
+        child=child,
+        prior=None,
+        new_sources=[nurse],
+        new_facts_by_source={nurse.id: [nurse_fact]},
+    )
+    nurse_ids = {f.id for f in ledger_a.facts if f.source_id == nurse.id}
+    ok &= check(
+        "A holds nurse",
+        nurse_ids == {nurse_fact.id} and len(ledger_a.sources) == 1,
+        f"nurse_ids={nurse_ids} sources={len(ledger_a.sources)}",
+    )
+
+    ledger_ab = merge_ledger_with_extracted(
+        child=child,
+        prior=ledger_a,
+        new_sources=[iep],
+        new_facts_by_source={iep.id: [iep_fact]},
+    )
+    source_ids = {s.id for s in ledger_ab.sources}
+    ok &= check(
+        "A+B sources",
+        source_ids == {nurse.id, iep.id},
+        f"sources={source_ids}",
+    )
+    after_merge_nurse_ids = {f.id for f in ledger_ab.facts if f.source_id == nurse.id}
+    ok &= check(
+        "A ids stable",
+        after_merge_nurse_ids == nurse_ids,
+        f"before={nurse_ids} after={after_merge_nurse_ids}",
+    )
+    ok &= check(
+        "namespaced ids",
+        nurse_fact.id.startswith(f"f_{nurse.id}_") and iep_fact.id.startswith(f"f_{iep.id}_"),
+        f"ids={[nurse_fact.id, iep_fact.id]}",
+    )
+    conflicts, _, _, _, _ = detect_disagreements(ledger_ab.facts)
+    name_conflicts = [c for c in conflicts if c.predicate == "legal_name"]
+    ok &= check(
+        "A+B name conflict",
+        len(name_conflicts) == 1
+        and {v.source_id for v in name_conflicts[0].versions} == {nurse.id, iep.id},
+        f"name_conflicts={len(name_conflicts)}",
+    )
+
+    # Idempotency: re-submit A with a corrected value → replace A, B untouched.
+    nurse_corrected = nurse_fact.model_copy(
+        update={
+            "id": fact_id_for_source(nurse.id, 1),
+            "value": "Justin Marcus",
+            "value_text": "Student name on header: Justin Marcus",
+        }
+    )
+    iep_ids_before = {f.id for f in ledger_ab.facts if f.source_id == iep.id}
+    iep_values_before = {
+        (f.predicate, f.value) for f in ledger_ab.facts if f.source_id == iep.id
+    }
+    ledger_re = merge_ledger_with_extracted(
+        child=child,
+        prior=ledger_ab,
+        new_sources=[nurse],
+        new_facts_by_source={nurse.id: [nurse_corrected]},
+    )
+    nurse_facts_re = [f for f in ledger_re.facts if f.source_id == nurse.id]
+    iep_facts_re = [f for f in ledger_re.facts if f.source_id == iep.id]
+    ok &= check(
+        "reingest replaces A",
+        len(nurse_facts_re) == 1 and nurse_facts_re[0].value == "Justin Marcus",
+        f"nurse_facts={[f.value for f in nurse_facts_re]}",
+    )
+    ok &= check(
+        "B untouched",
+        {f.id for f in iep_facts_re} == iep_ids_before
+        and {(f.predicate, f.value) for f in iep_facts_re} == iep_values_before,
+        f"iep ids/values changed on A reingest",
+    )
+    nurse_doc_count = sum(1 for f in ledger_re.facts if f.source_id == nurse.id)
+    ok &= check(
+        "no A duplicate",
+        nurse_doc_count == 1,
+        f"nurse fact count={nurse_doc_count}",
+    )
+
+    # Derived recompute: new evaluation_date → age changes; request/computed ids stable.
+    age_2026 = compute_age_years(child.dob, child.evaluation_date)
+    age_fact_2026 = next(f for f in ledger_re.facts if f.derivation == AGE_DERIVATION)
+    ok &= check(
+        "age 2026",
+        age_fact_2026.value == str(age_2026) and age_fact_2026.id == COMPUTED_AGE_FACT_ID,
+        f"age={age_fact_2026.value} id={age_fact_2026.id}",
+    )
+    dob_fact = next(f for f in ledger_re.facts if f.id == REQUEST_DOB_FACT_ID)
+    ok &= check("stable request dob id", dob_fact.id == REQUEST_DOB_FACT_ID, dob_fact.id)
+
+    child_later = child.model_copy(update={"evaluation_date": "2029-07-16"})
+    age_2029 = compute_age_years(child_later.dob, child_later.evaluation_date)
+    ok &= check(
+        "eval date moved",
+        age_2029 != age_2026,
+        f"age_2026={age_2026} age_2029={age_2029}",
+    )
+    ledger_later = merge_ledger_with_extracted(
+        child=child_later,
+        prior=ledger_re,
+        new_sources=[iep],
+        new_facts_by_source={iep.id: [iep_fact]},
+    )
+    age_fact_later = next(f for f in ledger_later.facts if f.derivation == AGE_DERIVATION)
+    ok &= check(
+        "age recomputed",
+        age_fact_later.value == str(age_2029) and age_fact_later.id == COMPUTED_AGE_FACT_ID,
+        f"age={age_fact_later.value} id={age_fact_later.id}",
+    )
+    ok &= check(
+        "A still stable after B remerge",
+        {f.id for f in ledger_later.facts if f.source_id == nurse.id}
+        == {nurse_corrected.id},
+        "nurse ids changed on unrelated merge",
+    )
+    return ok
+
+
 def test_ask_age_guard(base: str) -> bool:
     """/ask still enforces confirm_synthetic + force_bad_age (pipeline under the hood)."""
 
@@ -2652,6 +2841,7 @@ def main() -> int:
     results.append(("validators.age", test_age_validator_unit()))
     results.append(("validators.provenance", test_provenance_validator_unit()))
     results.append(("stage45.unit", test_derived_and_coverage_unit()))
+    results.append(("extract.incremental", test_incremental_extract_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
     results.append(("draft.smoke", test_draft_smoke()))
     results.append(("extract.stage25", test_extract_stage25()))

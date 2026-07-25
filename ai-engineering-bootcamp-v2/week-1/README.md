@@ -28,10 +28,17 @@ Extraction, comparison, and prose are separate stages. One combined model call
 produced fluent narrative that silently harmonized contradictory sources.
 Separating them removes that pressure.
 
+Documents arrive over weeks. `/extract` is **incremental**: optional prior
+`ledger` + one new typed source → extract that file, merge by `source_id`
+(re-ingest replaces that source's facts), recompute derived facts against
+`evaluation_date`, return the grown ledger. Molly holds the accumulating
+artifact; the service stores nothing. No prior ledger = build from scratch
+(batch / demo). `/ask` keeps the batch contract for small cases.
+
 | Stage | Endpoint | Model? | Output |
 |-------|----------|--------|--------|
 | Classify | `POST /ingest` | 1 cheap call | `{source_type, source_date, label}` for **user confirmation** (never silent) |
-| Extract | `POST /extract` | 1 call / source | `Ledger`, `GapReport`, `timelines` (computed view) |
+| Extract | `POST /extract` | 1 call / new source | `Ledger` (merged), `GapReport`, `timelines` (computed view) |
 | Conflicts | `POST /conflicts` | none | record `conflicts`, perspectival `variance`, timelines |
 | Draft | `POST /draft` | draft + per-fact entailment | `ReportSection` + review queue |
 | Ask | `POST /ask` | full pipeline | Same course contract: `answer`, `tokens_used`, `cost_usd` |
@@ -123,6 +130,12 @@ separates the two roles: the payload may carry **vocabulary** (`canonical_subjec
 predicate list in the system prompt) without any **case data** (dob, initials,
 evaluation_date). Provenance predicates (`defers_to`) get their subject stamped
 server-side as the extracting source id.
+
+**Incremental `/extract` is the real contract; batch was a convenience.**
+A ~28-document case exceeds model limits both per-file and in aggregate. Stage 6.1
+makes the ledger the accumulating artifact Molly re-uploads — same merge as loading
+a prior evaluation's ledger and extending it. Fact ids are namespaced by source;
+derived age is recomputed on every merge against the current `evaluation_date`.
 
 ## Smoke tests
 

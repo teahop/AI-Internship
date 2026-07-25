@@ -20,6 +20,10 @@ from schemas import Child, Fact
 COMPUTED_SOURCE_ID = "computed"
 REQUEST_SOURCE_ID = "request"
 
+# Stable fact ids so merges do not renumber request/computed rows.
+REQUEST_DOB_FACT_ID = "f_request_dob"
+COMPUTED_AGE_FACT_ID = "f_computed_age_years"
+
 # Derivation recipes: name → (recompute value from Child).
 DerivationFn = Callable[[Child], str]
 
@@ -42,6 +46,16 @@ _register(AGE_DERIVATION, _age_from_dob_and_eval)
 
 def is_derived_fact(fact: Fact) -> bool:
     return fact.derivation is not None or fact.source_id == COMPUTED_SOURCE_ID
+
+
+def is_synthetic_source_id(source_id: str) -> bool:
+    return source_id in {COMPUTED_SOURCE_ID, REQUEST_SOURCE_ID}
+
+
+def strip_synthetic_facts(facts: list[Fact]) -> list[Fact]:
+    """Drop request/computed rows so they can be re-injected after a merge."""
+
+    return [f for f in facts if not is_synthetic_source_id(f.source_id)]
 
 
 def recompute_derived_value(derivation: str, child: Child) -> str:
@@ -149,25 +163,28 @@ def inject_derived_and_request_facts(
     facts: list[Fact],
     child: Child,
     *,
-    next_id: int,
+    next_id: int = 1,
 ) -> tuple[list[Fact], int]:
     """
     Append request-time dob + derived age_years to an extracted fact list.
 
-    Returns (extended facts, next unused numeric id).
+    Strips any prior request/computed rows first so re-injection after a merge
+    recomputes against the current evaluation_date rather than carrying stale
+    derived values. Fact ids for these rows are stable across merges.
+
+    ``next_id`` is retained for call-site compatibility; synthetic rows use
+    fixed ids and do not consume it. Returns (extended facts, next_id unchanged).
     """
 
-    out = list(facts)
-    dob_fact = build_request_dob_fact(child, fact_id=f"f_{next_id:03d}")
-    next_id += 1
-    out.append(dob_fact)
+    out = strip_synthetic_facts(facts)
+    out.append(build_request_dob_fact(child, fact_id=REQUEST_DOB_FACT_ID))
 
     disputed = request_dob_disputed(out, child)
-    age_fact = build_age_years_fact(
-        child,
-        fact_id=f"f_{next_id:03d}",
-        inherits_dispute=disputed,
+    out.append(
+        build_age_years_fact(
+            child,
+            fact_id=COMPUTED_AGE_FACT_ID,
+            inherits_dispute=disputed,
+        )
     )
-    next_id += 1
-    out.append(age_fact)
     return out, next_id

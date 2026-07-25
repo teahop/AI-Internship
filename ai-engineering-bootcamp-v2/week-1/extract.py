@@ -9,7 +9,11 @@ from pathlib import Path
 
 from coverage import build_gap_report
 from conflicts import compute_timelines
-from derived import inject_derived_and_request_facts
+from derived import (
+    inject_derived_and_request_facts,
+    is_synthetic_source_id,
+    strip_synthetic_facts,
+)
 from normalize import normalize_qualifier, normalize_value
 from predicates import (
     CANONICAL_SUBJECTS,
@@ -39,6 +43,18 @@ _DIR = Path(__file__).resolve().parent
 _PROMPT_TEMPLATE = (_DIR / "extract_prompt.md").read_text(encoding="utf-8")
 
 LEDGER_VERSION = "1"
+
+
+def fact_id_for_source(source_id: str, index: int) -> str:
+    """
+    Namespace fact ids by source so merges cannot collide.
+
+    Unrelated merges leave other sources' ids untouched; re-ingest of one source
+    replaces only that source's namespace.
+    """
+
+    safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", source_id).strip("_") or "source"
+    return f"f_{safe}_{index:03d}"
 
 
 def _predicate_list_for_prompt() -> str:
@@ -233,29 +249,87 @@ def extract_source_facts(
     )
 
 
+def merge_ledger_with_extracted(
+    *,
+    child: Child,
+    prior: Ledger | None,
+    new_sources: list[Source],
+    new_facts_by_source: dict[str, list[Fact]],
+) -> Ledger:
+    """
+    Merge newly extracted facts into a prior ledger (or assemble from scratch).
+
+    Merge is keyed on source_id: re-submitting a source replaces that source's
+    prior facts and source row; other sources are untouched. Derived / request
+    rows are stripped and recomputed against child.evaluation_date.
+    """
+
+    replace_ids = {s.id for s in new_sources}
+    prior_sources = list(prior.sources) if prior else []
+    prior_facts = strip_synthetic_facts(list(prior.facts)) if prior else []
+
+    kept_sources = [s for s in prior_sources if s.id not in replace_ids]
+    sources = kept_sources + list(new_sources)
+
+    kept_facts = [
+        f
+        for f in prior_facts
+        if f.source_id not in replace_ids and not is_synthetic_source_id(f.source_id)
+    ]
+    used_ids = {f.id for f in kept_facts}
+
+    merged_new: list[Fact] = []
+    for source in new_sources:
+        for fact in new_facts_by_source.get(source.id, []):
+            if fact.id in used_ids:
+                raise ValueError(f"Fact id collision on merge: {fact.id!r}")
+            if fact.source_id != source.id:
+                raise ValueError(
+                    f"Fact {fact.id!r} source_id={fact.source_id!r} "
+                    f"does not match source {source.id!r}"
+                )
+            used_ids.add(fact.id)
+            merged_new.append(fact)
+
+    facts, _ = inject_derived_and_request_facts(kept_facts + merged_new, child, next_id=1)
+    return Ledger(
+        child=child,
+        ledger_version=LEDGER_VERSION,
+        built_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        sources=sources,
+        facts=facts,
+    )
+
+
 def build_ledger(
     provider: ModelProvider,
     *,
     child: Child,
     sources: list[Source],
     model: str,
+    prior_ledger: Ledger | None = None,
 ) -> tuple[Ledger, dict[str, int], int, int, list[str], list[str], GapReport, list[Timeline]]:
     """
-    Extract facts from each source independently and assemble a Ledger.
+    Extract facts from each source independently and assemble / merge a Ledger.
 
-    Injects request-time dob + derived age_years after extraction.
+    When ``prior_ledger`` is set, new sources are extracted and merged into it
+    (replace by source_id). When omitted, builds from scratch (batch / demo path).
+
+    Injects request-time dob + derived age_years after extraction / merge.
     Timelines are a computed view — not stored on the ledger.
     Returns (ledger, tokens_by_source, prompt_tokens, completion_tokens,
              predicates_for_review, subjects_for_review, gap_report, timelines).
     """
 
-    facts: list[Fact] = []
+    facts_by_source: dict[str, list[Fact]] = {}
     tokens_by_source: dict[str, int] = {}
     prompt_tokens = completion_tokens = 0
     review: list[str] = []
     subject_review: list[str] = []
-    next_id = 1
+
     known_source_ids = {s.id for s in sources}
+    if prior_ledger is not None:
+        known_source_ids |= {s.id for s in prior_ledger.sources}
 
     for source in sources:
         drafts, total, p_tok, c_tok = extract_source_facts(
@@ -265,9 +339,14 @@ def build_ledger(
         prompt_tokens += p_tok
         completion_tokens += c_tok
 
-        for draft in drafts:
-            fact = draft_to_fact(draft, fact_id=f"f_{next_id:03d}", source=source, child=child)
-            next_id += 1
+        source_facts: list[Fact] = []
+        for index, draft in enumerate(drafts, start=1):
+            fact = draft_to_fact(
+                draft,
+                fact_id=fact_id_for_source(source.id, index),
+                source=source,
+                child=child,
+            )
             if needs_predicate_review(fact.predicate) and fact.predicate not in review:
                 review.append(fact.predicate)
             if (
@@ -275,16 +354,14 @@ def build_ledger(
                 and fact.subject not in subject_review
             ):
                 subject_review.append(fact.subject)
-            facts.append(fact)
+            source_facts.append(fact)
+        facts_by_source[source.id] = source_facts
 
-    facts, _next_id = inject_derived_and_request_facts(facts, child, next_id=next_id)
-
-    ledger = Ledger(
+    ledger = merge_ledger_with_extracted(
         child=child,
-        ledger_version=LEDGER_VERSION,
-        built_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        sources=list(sources),
-        facts=facts,
+        prior=prior_ledger,
+        new_sources=sources,
+        new_facts_by_source=facts_by_source,
     )
     gap_report = build_gap_report(ledger)
     timelines = compute_timelines(ledger.facts)
