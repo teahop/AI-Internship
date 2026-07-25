@@ -1078,6 +1078,44 @@ def test_age_validator_unit() -> bool:
         ok &= check("fires", True, f"validator raised: {exc}")
     if not fired:
         ok &= check("fires", False, "validator did NOT raise on planted bad age")
+
+    # Historical "at age N" narrates past facts — must not trip the current-age guard.
+    historical = ReportSection(
+        section="history",
+        prose=(
+            f"{child['name']} is a {expected}-year-old student with concerns "
+            "regarding her developmental history, including delays in speech "
+            "and language at age 3."
+        ),
+        facts=[
+            SourcedFact(
+                statement=f"Student is {expected} years old.",
+                source_id="school-cum-2024",
+                source_date="2024-09-01",
+                life_stage="current",
+            ),
+            SourcedFact(
+                statement="Delays in speech and language at age 3.",
+                source_id="eval-2013",
+                source_date="2013-09-10",
+                life_stage="preschool",
+            ),
+        ],
+        conflicts=[],
+        coverage=["current", "preschool"],
+    )
+    try:
+        got = validate_age_consistency(
+            historical, dob=child["dob"], evaluation_date=child["evaluation_date"]
+        )
+        ok &= check(
+            "historical at-age passes",
+            got == expected,
+            f"expected {expected}, got {got}",
+        )
+    except ValueError as exc:
+        ok &= check("historical at-age passes", False, f"raised: {exc}")
+
     return ok
 
 

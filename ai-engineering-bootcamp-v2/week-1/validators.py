@@ -12,8 +12,9 @@ from derived import AGE_DERIVATION, validate_derived_facts
 from schemas import Fact, Ledger, ReportSection, Source
 
 
-# Current-age claims only — historical "records said she was 7" must not fail the draft.
-# Kept as a backstop for uncited age mentions; primary check is derived-fact recomputation.
+# Current-age claims only — historical "at age 3" / "records said she was 7"
+# must not fail the draft. Backstop for uncited ages; primary check is
+# derived-fact recomputation.
 _CURRENT_AGE_PATTERNS = [
     # "is an 8-year-old", "is a 8 year old"
     re.compile(
@@ -29,16 +30,32 @@ _CURRENT_AGE_PATTERNS = [
         r"\bis\s+(?P<age>\d{1,2})\s+years?\s+old\b",
         re.IGNORECASE,
     ),
-    # "currently age 8" / "age 8" when not clearly historical
+    # Present-framed only: "currently age 8", "is age 8", "present age 8".
+    # Bare "age 8" / "at age 3" is handled via historical-prefix exclusion below.
     re.compile(
-        r"\b(?:currently\s+)?(?:age[d]?)\s+(?P<age>\d{1,2})\b",
+        r"\b(?:currently|present(?:ly)?|is)\s+(?:age[d]?)\s+(?P<age>\d{1,2})\b",
+        re.IGNORECASE,
+    ),
+    # "age 8" / "aged 8" only when not a historical "at/by/around age N".
+    re.compile(
+        r"\b(?:age[d]?)\s+(?P<age>\d{1,2})\b",
         re.IGNORECASE,
     ),
 ]
 
+# Immediate left context that marks an age mention as historical, not current.
+_HISTORICAL_AGE_PREFIX = re.compile(
+    r"(?:"
+    r"at|by|around|about|from|until|since|before|after|"
+    r"when\s+(?:she|he|they|the\s+(?:child|student|patient))\s+was"
+    r")\s+$",
+    re.IGNORECASE,
+)
+
 _HISTORICAL_HINT = re.compile(
     r"\b("
     r"was|were|stated|indicated|listed|recorded|noted|reported\s+as|"
+    r"at\s+age|by\s+age|around\s+age|when\s+\w+\s+was|"
     r"at\s+the\s+time|in\s+\d{4}|cumulative|old\s+record|stale"
     r")\b",
     re.IGNORECASE,
@@ -70,29 +87,48 @@ def _sentence_window(text: str, start: int, end: int) -> str:
     return text[a:b]
 
 
+def _is_historical_age_mention(text: str, match: re.Match[str]) -> bool:
+    """True when the match is a past-age reference, not a current-age claim."""
+
+    prefix = text[max(0, match.start() - 48) : match.start()]
+    if _HISTORICAL_AGE_PREFIX.search(prefix):
+        return True
+    window = _sentence_window(text, match.start(), match.end())
+    return bool(_HISTORICAL_HINT.search(window))
+
+
 def _extract_wrong_current_ages(text: str, expected: int) -> list[tuple[int, str]]:
     wrong: list[tuple[int, str]] = []
+    seen_spans: set[tuple[int, int]] = set()
     for pattern in _CURRENT_AGE_PATTERNS:
         for match in pattern.finditer(text):
+            span = (match.start("age"), match.end("age"))
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
             asserted = int(match.group("age"))
             if asserted == expected:
                 continue
-            window = _sentence_window(text, match.start(), match.end())
-            # Allow attributed historical ages from old records.
-            if _HISTORICAL_HINT.search(window):
+            # Allow historical ages ("at age 3", "when she was 7", old records).
+            if _is_historical_age_mention(text, match):
                 continue
+            window = _sentence_window(text, match.start(), match.end())
             wrong.append((asserted, window.strip()[:120]))
     return wrong
 
 
 def _has_current_age_mention(text: str, expected: int) -> bool:
+    seen_spans: set[tuple[int, int]] = set()
     for pattern in _CURRENT_AGE_PATTERNS:
         for match in pattern.finditer(text):
+            span = (match.start("age"), match.end("age"))
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
             asserted = int(match.group("age"))
             if asserted != expected:
                 continue
-            window = _sentence_window(text, match.start(), match.end())
-            if _HISTORICAL_HINT.search(window):
+            if _is_historical_age_mention(text, match):
                 continue
             return True
     return False
