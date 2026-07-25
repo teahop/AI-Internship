@@ -761,6 +761,41 @@ def test_extract_isolation_unit() -> bool:
         denied_fact.temporality == "as_of",
         f"temporality={denied_fact.temporality}",
     )
+
+    # One bad null value must parse and be skippable — not abort SourceExtraction.
+    from extract import _draft_is_skippable
+    from schemas import SourceExtraction
+
+    nullish = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "dob",
+            "value": "null",
+            "value_text": "Date of birth: ________",
+            "assertion": "asserted",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    ok &= check("null value coerced empty", nullish.value == "", f"value={nullish.value!r}")
+    ok &= check("null draft skippable", _draft_is_skippable(nullish), "expected skip")
+    ok_fact = ExtractedFactDraft(
+        subject="child",
+        predicate="legal_name",
+        value="Jordan Miles",
+        value_text="Student: Jordan Miles",
+        assertion="asserted",
+        life_stage="current",
+        confidence="stated",
+    )
+    parsed = SourceExtraction.model_validate(
+        {"facts": [nullish.model_dump(), ok_fact.model_dump()]}
+    )
+    ok &= check(
+        "SourceExtraction keeps siblings of null draft",
+        len(parsed.facts) == 2 and parsed.facts[0].value == "" and parsed.facts[1].value == "Jordan Miles",
+        f"facts={[f.value for f in parsed.facts]}",
+    )
     return ok
 
 

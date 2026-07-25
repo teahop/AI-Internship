@@ -254,10 +254,16 @@ class ExtractedFactDraft(BaseModel):
         ),
     )
     value: str = Field(
-        min_length=1,
-        description="Normalized comparison value — must be a non-empty stated claim",
+        default="",
+        description=(
+            "Normalized comparison value. Empty / literal 'null' drafts are "
+            "skipped at finalize — never abort the whole source for one bad field."
+        ),
     )
-    value_text: str = Field(min_length=1, description="The claim in the source's own words")
+    value_text: str = Field(
+        default="",
+        description="The claim in the source's own words (may be empty on skipped drafts)",
+    )
     qualifier: str | None = None
     assertion: FactAssertion = "asserted"
     reporter: str | None = None
@@ -272,12 +278,24 @@ class ExtractedFactDraft(BaseModel):
         ),
     )
 
-    @field_validator("value")
+    @field_validator("value", mode="before")
     @classmethod
-    def value_must_exist(cls, v: str) -> str:
-        text = (v or "").strip()
-        if not text or text.lower() == "null":
-            raise ValueError("value must be a non-empty stated claim (not empty/null)")
+    def coerce_nullish_value(cls, v: object) -> str:
+        if v is None:
+            return ""
+        text = str(v).strip()
+        if not text or text.lower() in {"null", "none-stated", "n/a", "undefined"}:
+            return ""
+        return text
+
+    @field_validator("value_text", mode="before")
+    @classmethod
+    def coerce_nullish_value_text(cls, v: object) -> str:
+        if v is None:
+            return ""
+        text = str(v).strip()
+        if not text or text.lower() in {"null", "none-stated", "n/a", "undefined"}:
+            return ""
         return text
 
     @model_validator(mode="after")

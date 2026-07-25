@@ -264,6 +264,16 @@ def _finalize_subject(draft: ExtractedFactDraft, source: Source, predicate: str)
     return subject if subject in CANONICAL_SUBJECTS else "child"
 
 
+def _draft_is_skippable(draft: ExtractedFactDraft) -> bool:
+    """True when a draft has no usable value — skip, do not abort the source."""
+
+    raw = (draft.value or "").strip()
+    if not raw or raw.lower() in {"null", "none-stated", "n/a", "undefined"}:
+        return True
+    # value_text alone is not enough; comparison value is required.
+    return False
+
+
 def draft_to_fact(
     draft: ExtractedFactDraft,
     *,
@@ -296,7 +306,7 @@ def draft_to_fact(
         subject=subject,
         predicate=predicate,
         value=value,
-        value_text=clip_value_text(draft.value_text),
+        value_text=clip_value_text(draft.value_text or value),
         qualifier=qualifier,
         assertion=_finalize_assertion(draft, predicate=predicate, value=value),
         source_id=source.id,
@@ -367,15 +377,21 @@ def extract_source_to_facts(
         completion_tokens += c_tok
 
     facts: list[Fact] = []
-    for index, draft in enumerate(drafts, start=1):
-        facts.append(
-            draft_to_fact(
-                draft,
-                fact_id=fact_id_for_source(source.id, index),
-                source=source,
-                child=child,
+    for draft in drafts:
+        if _draft_is_skippable(draft):
+            continue
+        try:
+            facts.append(
+                draft_to_fact(
+                    draft,
+                    fact_id=fact_id_for_source(source.id, len(facts) + 1),
+                    source=source,
+                    child=child,
+                )
             )
-        )
+        except ValueError:
+            # One bad draft must not drop the rest of the source.
+            continue
     facts = dedupe_facts(facts)
     facts = [
         f.model_copy(update={"id": fact_id_for_source(source.id, i)})
