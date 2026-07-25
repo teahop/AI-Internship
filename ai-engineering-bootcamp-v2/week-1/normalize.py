@@ -95,10 +95,8 @@ _STATUS_PREDICATES = frozenset(
         "health_plan_status",
         "iep_status",
         "plan_504_status",
-        "special_education_eligibility",
         "attendance",
         "private_tutoring",
-        "epinephrine_available",
         "medications",
         "hospitalizations",
         "behavioral_referral",
@@ -190,9 +188,12 @@ def _normalize_status(predicate: str, raw: str) -> str:
             return "none"
 
     if predicate == "allergy_status":
-        # Keep known vs undiagnosed distinct — do not collapse.
+        # Keep known / undiagnosed / unknown / none distinct — do not collapse.
         if "undiagnosed" in text:
             return "undiagnosed"
+        # "unknown" must precede the "known" check — "known" is a substring of "unknown".
+        if re.search(r"\bunknown\b", text):
+            return "unknown"
         if re.search(r"\bno\s+(known\s+)?allerg", text) or text in {
             "none",
             "no",
@@ -225,18 +226,6 @@ def _normalize_status(predicate: str, raw: str) -> str:
             return "none"
         if "tutor" in text or text in {"yes", "true"}:
             return "yes"
-        return text
-
-    if predicate == "epinephrine_available":
-        if re.search(r"\b(no|none)\b", text):
-            return "none"
-        if "health office" in text or "kept" in text or text in {"yes", "true"}:
-            return "yes"
-        return text
-
-    if predicate == "special_education_eligibility":
-        if re.search(r"\b(no|none|not)\b", text):
-            return "none"
         return text
 
     if predicate == "attendance":

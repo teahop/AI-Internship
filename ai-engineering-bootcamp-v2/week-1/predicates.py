@@ -170,29 +170,25 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "allergy_status",
         "record",
         "Allergy classification or presence (known, undiagnosed, none, etc.).",
-        "durable",
-        "Put the substance in qualifier (peanuts, dairy). Do not mint peanut_allergy_status.",
+        "as_of",
+        "Put the substance in qualifier (peanuts, dairy). Do not mint peanut_allergy_status. "
+        "Can change over a child's life — as_of, not durable (Molly, worksheet #15).",
         takes_qualifier=True,
     ),
     _p(
         "allergy_substance",
         "record",
         "Named allergen when stated without a status classification.",
-        "durable",
-        "Prefer allergy_status + qualifier when both substance and status appear.",
-    ),
-    _p(
-        "epinephrine_available",
-        "record",
-        "Whether epinephrine auto-injector is available / where kept.",
         "as_of",
-        takes_qualifier=True,
+        "Prefer allergy_status + qualifier when both substance and status appear.",
     ),
     _p(
         "health_plan_status",
         "record",
         "Individual health plan status (draft, active/on file, none).",
         "as_of",
+        "Different dates with different statuses form a timeline, not a same-date conflict "
+        "(e.g. draft in 2024 vs active in 2025).",
     ),
     _p(
         "medications",
@@ -209,10 +205,11 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
     ),
     _p(
         "sleep",
-        "record",
-        "Sleep quality/pattern as stated.",
+        "perspectival",
+        "Sleep quality/pattern as reported.",
         "as_of",
-        "If framed as a rater impression rather than a factual report, prefer a perspectival predicate.",
+        "Child self-report vs parent observation legitimately differ — divergence is variance, "
+        "not a conflict (Molly, worksheet #21).",
     ),
     # --- school / services (record) ---
     _p(
@@ -226,18 +223,15 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "record",
         "Whether an IEP is in place.",
         "as_of",
+        "Explicit negatives ('no prior IEP', 'none in place') → assertion denied, value none. "
+        "Do not use asserted + value none for those denials.",
     ),
     _p(
         "plan_504_status",
         "record",
         "Whether a 504 plan is in place.",
         "as_of",
-    ),
-    _p(
-        "special_education_eligibility",
-        "record",
-        "Formal special education eligibility status.",
-        "as_of",
+        "Same speech-act rule as iep_status: explicit 'no 504' → denied / none.",
     ),
     _p(
         "intervention_tier",
@@ -251,7 +245,8 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "record",
         "Whether private tutoring occurred (and when/grade if stated).",
         "durable",
-        "Omission in a school log vs positive parent report can be a record conflict.",
+        "School-log silence is NOT a conflict — the school may not know about privately "
+        "arranged tutoring (Molly, worksheet Q5; spec §9.9.1).",
     ),
     _p(
         "behavioral_referral",
@@ -270,10 +265,24 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
     ),
     # --- academic skill levels ---
     _p(
+        "basic_reading",
+        "record",
+        "Basic reading / decoding skill — word attack, letter-sound, phonological processing.",
+        "as_of",
+        "Replaces phonics_progress; Molly also calls this phonological processing (worksheet #34).",
+    ),
+    _p(
         "reading_fluency",
         "record",
         "Reading fluency level relative to peers or grade expectations.",
         "as_of",
+    ),
+    _p(
+        "reading_comprehension",
+        "record",
+        "Reading comprehension level relative to peers or grade expectations.",
+        "as_of",
+        "Added at Molly's request (worksheet #31).",
     ),
     _p(
         "spelling",
@@ -288,16 +297,31 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "as_of",
     ),
     _p(
+        "writing_fluency",
+        "record",
+        "Writing fluency (rate/output) as stated.",
+        "as_of",
+        "Added at Molly's request (worksheet #32).",
+    ),
+    _p(
         "math_computation",
         "record",
         "Math computation skill level as stated.",
         "as_of",
     ),
     _p(
-        "phonics_progress",
+        "math_fluency",
         "record",
-        "Phonics / letter-sound progress as stated.",
+        "Math fact fluency as stated.",
         "as_of",
+        "Added at Molly's request (worksheet #33).",
+    ),
+    _p(
+        "math_reasoning",
+        "record",
+        "Math reasoning / applied problem-solving skill as stated.",
+        "as_of",
+        "Added at Molly's request (worksheet #33).",
     ),
     # --- perspectival ---
     _p(
@@ -362,6 +386,13 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "When/how a reporter describes concerns beginning (timing of onset).",
         "durable",
         "Only for onset timing — not for 'development was typical' (use developmental_history).",
+    ),
+    _p(
+        "trauma_history",
+        "perspectival",
+        "History of trauma or adverse experiences as described by a reporter.",
+        "durable",
+        "Reporter-dependent; treat like developmental_concern_onset (Molly, worksheet Q2).",
     ),
     _p(
         "preschool_experience_impression",

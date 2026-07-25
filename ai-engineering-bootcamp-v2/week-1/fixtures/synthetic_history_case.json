@@ -12,7 +12,7 @@
       "type": "assessment",
       "date": "2026-07-10",
       "label": "Current psycho-educational assessment notes",
-      "content": "Referral for learning concerns in reading fluency and written expression. Examiner notes full-term birth per parent report collected at intake. No prior formal special education eligibility documented in the referral packet. Student presents as cooperative during testing."
+      "content": "Referral for learning concerns in reading fluency and written expression. Examiner notes full-term birth per parent report collected at intake. No prior IEP documented in the referral packet. Student presents as cooperative during testing."
     },
     {
       "id": "school-cum-2024",
@@ -43,13 +43,7 @@
       "content": "Grade 4 teacher: reading fluency below grade peers; spelling weak; math computation average. Behavior: attentive, anxious when called on to read aloud. Homework completion inconsistent when writing is required."
     }
   ],
-  "expected_conflicts": [
-    {
-      "topic": "private tutoring",
-      "predicate": "private_tutoring",
-      "source_ids": ["parent-dev-2026", "school-iep-none-2025"]
-    }
-  ],
+  "expected_conflicts": [],
   "expected_facts": [
     {
       "statement": "Referral for learning concerns in reading fluency and written expression.",
@@ -57,7 +51,7 @@
       "life_stage": "current"
     },
     {
-      "statement": "No prior formal special education eligibility documented in the referral packet.",
+      "statement": "No prior IEP documented in the referral packet.",
       "source_id": "assess-2026-wisc",
       "life_stage": "school-age"
     },
@@ -125,7 +119,7 @@
   "expected_ledger_facts": [
     {
       "source_id": "assess-2026-wisc",
-      "predicate": "special_education_eligibility",
+      "predicate": "iep_status",
       "assertion": "denied",
       "value": "none"
     }

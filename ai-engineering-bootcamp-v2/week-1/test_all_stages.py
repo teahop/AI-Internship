@@ -667,9 +667,9 @@ def test_extract_isolation_unit() -> bool:
 
     denied = ExtractedFactDraft(
         subject="child",
-        predicate="special_education_eligibility",
+        predicate="iep_status",
         value="none",
-        value_text="No prior formal special education eligibility documented",
+        value_text="No prior IEP documented",
         qualifier=None,
         assertion="denied",
         reporter=None,
@@ -680,7 +680,7 @@ def test_extract_isolation_unit() -> bool:
     denied_fact = draft_to_fact(denied, fact_id="f_002", source=sources[0], child=child)
     ok &= check("denied assertion", denied_fact.assertion == "denied", f"assertion={denied_fact.assertion}")
     ok &= check(
-        "eligibility as_of",
+        "iep_status as_of",
         denied_fact.temporality == "as_of",
         f"temporality={denied_fact.temporality}",
     )
@@ -1078,9 +1078,9 @@ def test_conflicts_unit() -> bool:
     denied_elig = Fact(
         id="f_006",
         subject="child",
-        predicate="special_education_eligibility",
+        predicate="iep_status",
         value="none",
-        value_text="no prior eligibility",
+        value_text="no prior IEP",
         qualifier=None,
         assertion="denied",
         source_id="assess",
@@ -1094,9 +1094,9 @@ def test_conflicts_unit() -> bool:
     asserted_elig = Fact(
         id="f_007",
         subject="child",
-        predicate="special_education_eligibility",
-        value="none",
-        value_text="eligibility none",
+        predicate="iep_status",
+        value="yes",
+        value_text="IEP on file",
         qualifier=None,
         assertion="asserted",
         source_id="school",
@@ -1135,7 +1135,7 @@ def test_conflicts_unit() -> bool:
     conflicts2, _, _timelines2, _, _ = detect_disagreements([denied_elig, asserted_elig])
     ok &= check(
         "asserted vs denied",
-        len(conflicts2) == 1 and conflicts2[0].predicate == "special_education_eligibility",
+        len(conflicts2) == 1 and conflicts2[0].predicate == "iep_status",
         f"asserted/denied conflicts={[c.topic for c in conflicts2]}",
     )
 
@@ -2258,12 +2258,12 @@ def test_extract_stage25() -> bool:
         denied = [
             f
             for f in meta["facts"]
-            if f.predicate == "special_education_eligibility" and f.assertion == "denied"
+            if f.predicate == "iep_status" and f.assertion == "denied"
         ]
         ok &= check(
-            "denied eligibility",
+            "denied iep_status",
             len(denied) >= 1,
-            f"special_education_eligibility denied facts={len(denied)} (want ≥1)",
+            f"iep_status denied facts={len(denied)} (want ≥1)",
         )
     finally:
         if assess_path.exists():
@@ -2286,6 +2286,10 @@ def test_extract_stage25() -> bool:
         "peanut" in quals and "dairy" in quals,
         f"allergy qualifiers={quals} (want peanut + dairy)",
     )
+
+    # Realistic full-length packet: exercise via measure_stage51_variance.py, not this
+    # blocking suite — live extract can raise ValidationError (e.g. model value "null")
+    # and abort the whole run before later stages report.
     return ok
 
 

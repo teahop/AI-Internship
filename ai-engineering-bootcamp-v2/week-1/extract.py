@@ -98,8 +98,27 @@ def _finalize_temporality(predicate: str) -> Temporality:
     return temporality_for_predicate(predicate)
 
 
-def _finalize_assertion(draft: ExtractedFactDraft) -> FactAssertion:
-    return draft.assertion if draft.assertion in ("asserted", "denied") else "asserted"
+# Status predicates: explicit "none / not in place" is a denial, not an asserted status.
+_STATUS_DENIAL_PREDICATES = frozenset({"iep_status", "plan_504_status"})
+
+
+def _finalize_assertion(
+    draft: ExtractedFactDraft,
+    *,
+    predicate: str,
+    value: str,
+) -> FactAssertion:
+    assertion: FactAssertion = (
+        draft.assertion if draft.assertion in ("asserted", "denied") else "asserted"
+    )
+    # Lock speech-act convention: normalized none on plan-status preds → denied.
+    if (
+        predicate in _STATUS_DENIAL_PREDICATES
+        and value.strip().lower() == "none"
+        and assertion == "asserted"
+    ):
+        return "denied"
+    return assertion
 
 
 def _finalize_as_of_date(draft: ExtractedFactDraft, source: Source) -> str:
@@ -175,7 +194,7 @@ def draft_to_fact(
         value=value,
         value_text=draft.value_text.strip(),
         qualifier=qualifier,
-        assertion=_finalize_assertion(draft),
+        assertion=_finalize_assertion(draft, predicate=predicate, value=value),
         source_id=source.id,
         source_date=source.date,
         as_of_date=as_of,

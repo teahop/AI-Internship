@@ -47,9 +47,11 @@ Use ISO `YYYY-MM-DD`. If only a year is named, use `YYYY-01-01` unless a more sp
 
 | Speech act | Example | Handling |
 |------------|---------|----------|
-| **Asserted** | "Nurse documents a known peanut allergy" | Emit a fact with `assertion: asserted` |
-| **Denied** | "No prior formal special education eligibility documented" | Emit a fact with `assertion: denied` — negative findings are real information |
+| **Asserted** | "Nurse documents a known peanut allergy"; "IEP is in place" | Emit a fact with `assertion: asserted` |
+| **Denied** | "No prior IEP documented"; "No IEP or 504 plan in place"; "No private tutoring" | Emit a fact with `assertion: denied` — explicit negatives are real findings |
 | **Non-assertion** | "Father did not describe health-plan status" / silence / omission / "see other records" without denying | **Emit no fact** for that topic. There is no `not_stated` value and no `none` invented from silence. |
+
+**Status predicates (`iep_status`, `plan_504_status`, and similar):** when the source *explicitly* says there is no plan / none in place / not documented, use `assertion: denied` and a short `value` such as `none`. Do **not** emit `assertion: asserted` with `value: none` for those negatives — that mislabels a denial as a positive status claim.
 
 If the source **defers** detail to other records ("take health background from the school health file and the IEP"), emit one provenance fact:
 
