@@ -32,12 +32,7 @@ from schemas import (
     SourcedFact,
     Timeline,
 )
-from validators import (
-    compute_age_years,
-    derived_age_facts,
-    has_current_age_mention,
-    validate_age_consistency,
-)
+from validators import compute_age_years, validate_age_consistency
 
 _DIR = Path(__file__).resolve().parent
 DRAFT_SYSTEM_PROMPT = (_DIR / "draft_prompt.md").read_text(encoding="utf-8")
@@ -210,44 +205,6 @@ def _output_to_report_section(
     )
 
 
-def _ensure_derived_age_citation(
-    section: ReportSection,
-    ledger: Ledger,
-) -> ReportSection:
-    """
-    If prose states the current age but forgot to cite the derived age fact,
-    attach that citation. Prevents a 502 when the narrative is otherwise correct.
-    """
-
-    ages = derived_age_facts(ledger.facts)
-    if len(ages) != 1:
-        return section
-    age_fact = ages[0]
-    if any(f.fact_id == age_fact.id for f in section.facts):
-        return section
-
-    expected = compute_age_years(ledger.child.dob, ledger.child.evaluation_date)
-    mentions = has_current_age_mention(section.prose, expected) or any(
-        has_current_age_mention(f.statement, expected) for f in section.facts
-    )
-    if not mentions:
-        return section
-
-    repaired = list(section.facts)
-    repaired.insert(
-        0,
-        SourcedFact(
-            statement=age_fact.value_text or f"Age {age_fact.value} years at evaluation.",
-            fact_id=age_fact.id,
-            source_id=age_fact.source_id,
-            source_date=age_fact.source_date,
-            life_stage=age_fact.life_stage,
-            reporter=age_fact.reporter,
-        ),
-    )
-    return section.model_copy(update={"facts": repaired})
-
-
 def draft_section(
     provider: ModelProvider,
     body: DraftRequest,
@@ -335,7 +292,6 @@ def draft_section(
         ledger=body.ledger,
         conflicts=body.conflicts,
     )
-    section = _ensure_derived_age_citation(section, body.ledger)
 
     expected_age = validate_age_consistency(
         section,

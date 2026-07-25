@@ -1384,62 +1384,6 @@ def test_age_validator_unit() -> bool:
     except ValueError as exc:
         ok &= check("historical at-age passes", False, f"raised: {exc}")
 
-    # Current-age prose without a derived-fact citation is repaired before validate.
-    from draft import _ensure_derived_age_citation
-    from derived import COMPUTED_AGE_FACT_ID, build_age_years_fact, build_request_dob_fact
-    from schemas import Child, Fact, Ledger
-
-    child_obj = Child(
-        name=child["name"],
-        dob=child["dob"],
-        evaluation_date=child["evaluation_date"],
-    )
-    age_fact = build_age_years_fact(child_obj, fact_id=COMPUTED_AGE_FACT_ID)
-    ledger = Ledger(
-        child=child_obj,
-        ledger_version="1",
-        built_at="2026-07-16T00:00:00Z",
-        sources=[],
-        facts=[
-            build_request_dob_fact(child_obj, fact_id="f_request_dob"),
-            age_fact,
-        ],
-    )
-    uncited = ReportSection(
-        section="history",
-        prose=f"{child['name']} is a {expected}-year-old student with a complex history.",
-        facts=[
-            SourcedFact(
-                statement="Complex developmental history noted.",
-                source_id="doc_11",
-                source_date="2024-10-02",
-                life_stage="current",
-            )
-        ],
-        conflicts=[],
-        coverage=["current"],
-    )
-    repaired = _ensure_derived_age_citation(uncited, ledger)
-    ok &= check(
-        "repair attaches derived age cite",
-        any(f.fact_id == COMPUTED_AGE_FACT_ID for f in repaired.facts),
-        f"fact_ids={[f.fact_id for f in repaired.facts]}",
-    )
-    try:
-        got = validate_age_consistency(
-            repaired,
-            dob=child_obj.dob,
-            evaluation_date=child_obj.evaluation_date,
-            ledger=ledger,
-        )
-        ok &= check(
-            "repaired current age validates",
-            got == expected,
-            f"expected {expected}, got {got}",
-        )
-    except ValueError as exc:
-        ok &= check("repaired current age validates", False, f"raised: {exc}")
-
     return ok
 
 

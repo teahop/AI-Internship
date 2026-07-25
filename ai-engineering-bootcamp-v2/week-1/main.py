@@ -17,6 +17,7 @@ from draft import draft_section
 from extract import build_ledger
 from ingest import classify_document
 from provider import DEFAULT_MODEL, ModelProvider, compute_cost_usd
+from retries import VALIDATION_RETRY_ATTEMPTS, run_with_validation_retries
 from schemas import (
     AskRequest,
     AskResponse,
@@ -308,16 +309,21 @@ def draft(body: DraftRequest) -> DraftResponse:
 
     Drafter has no discretion over facts/conflicts. Empty ledger for the section
     returns section_populated=False (not a thin padded draft). Nothing persisted.
+
+    Retries on draft-validation failure with the same budget as /ask (default).
     """
 
-    start = time.perf_counter()
-    try:
+    def _attempt(_attempt_i: int) -> DraftResponse:
+        start = time.perf_counter()
         response = draft_section(provider, body)
-    except (ValidationError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail=f"Draft failed: {exc}") from exc
+        response.latency_ms = int((time.perf_counter() - start) * 1000)
+        return response
 
-    response.latency_ms = int((time.perf_counter() - start) * 1000)
-    return response
+    return run_with_validation_retries(
+        _attempt,
+        max_attempts=VALIDATION_RETRY_ATTEMPTS,
+        failure_prefix="Draft failed validation after retry",
+    )
 
 
 @app.post("/ask")
@@ -330,42 +336,38 @@ def ask(body: AskRequest) -> AskResponse:
     """
 
     model = body.model or DEFAULT_MODEL
-    last_error: str | None = None
 
     # force_bad_age burns attempt 0; keep headroom for age/provenance retries.
-    max_attempts = 3 if body.force_bad_age else 2
+    max_attempts = 3 if body.force_bad_age else VALIDATION_RETRY_ATTEMPTS
 
-    for attempt in range(max_attempts):
-        try:
-            start = time.perf_counter()
+    def _attempt(attempt: int) -> AskResponse:
+        start = time.perf_counter()
 
-            if body.force_bad_age and attempt == 0:
-                section = _plant_bad_age_section(body)
-                tokens_used = 0
-                cost_usd = 0.0
-                expected_age = validate_age_consistency(
-                    section,
-                    dob=body.child.dob,
-                    evaluation_date=body.child.evaluation_date,
-                )
-                validate_provenance(section, body.sources)
-            else:
-                section, tokens_used, cost_usd, expected_age = _run_pipeline(body, model)
-
-            latency_ms = int((time.perf_counter() - start) * 1000)
-            return AskResponse(
-                answer=section,
-                tokens_used=tokens_used,
-                model=model,
-                latency_ms=latency_ms,
-                cost_usd=round(cost_usd, 6),
-                age_years_expected=expected_age,
+        if body.force_bad_age and attempt == 0:
+            section = _plant_bad_age_section(body)
+            tokens_used = 0
+            cost_usd = 0.0
+            expected_age = validate_age_consistency(
+                section,
+                dob=body.child.dob,
+                evaluation_date=body.child.evaluation_date,
             )
-        except (ValidationError, ValueError) as exc:
-            last_error = str(exc)
-            continue
+            validate_provenance(section, body.sources)
+        else:
+            section, tokens_used, cost_usd, expected_age = _run_pipeline(body, model)
 
-    raise HTTPException(
-        status_code=502,
-        detail=f"Draft failed validation after retry: {last_error}",
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return AskResponse(
+            answer=section,
+            tokens_used=tokens_used,
+            model=model,
+            latency_ms=latency_ms,
+            cost_usd=round(cost_usd, 6),
+            age_years_expected=expected_age,
+        )
+
+    return run_with_validation_retries(
+        _attempt,
+        max_attempts=max_attempts,
+        failure_prefix="Draft failed validation after retry",
     )
