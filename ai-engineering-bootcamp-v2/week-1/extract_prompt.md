@@ -74,7 +74,7 @@ Do **not** mint compound predicates like `peanut_allergy_status`. Predicates tha
 ## Normalization (write `value` this way)
 
 - Ages in months → integer string only: `13 months`, `thirteen months`, `walked at 13 mos` → `13`
-- Ages in years → integer string only: `7 years old` → `7`
+- Ages in years → integer string only: `7 years old` → `7`. **Floor** years+months — `8 years 10 months` / `Age: 8 year(s) 10 months` → `8` (never round up to 9). Emit `age_years` only from an explicit age statement about the child (`Age: …`, `N years old`); do not borrow a nearby grade, PE testing band, or other field.
 - Grades → `K` or integer string: `2nd grade`, `grade 2` → `2`
 - Names → the name tokens only (e.g. `Justin M.`)
 - Status / classification strings stay **distinct** — do not collapse different labels into one value

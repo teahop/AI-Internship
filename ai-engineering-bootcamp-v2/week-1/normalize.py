@@ -161,7 +161,23 @@ def _normalize_month_age(raw: str) -> str:
 
 
 def _normalize_year_age(raw: str) -> str:
-    n = _extract_int(raw)
+    """Whole years only — floor '8 years 10 months' / '8:10' to 8; never round up."""
+
+    text = raw.lower().strip()
+    m = re.search(
+        r"\b(\d{1,2})\s*years?(?:\s*\(\s*s\s*\))?\s+(\d{1,2})\s*months?\b",
+        text,
+    )
+    if m:
+        return str(int(m.group(1)))
+    m = re.search(r"\b(\d{1,2})\s*y(?:ears?)?\s+(\d{1,2})\s*m(?:os?|onths?)?\b", text)
+    if m:
+        return str(int(m.group(1)))
+    # Score-report style "Age: 14:9" / "8:10" → years before the colon.
+    m = re.search(r"\b(?:age\s*:?\s*)?(\d{1,2})\s*:\s*\d{1,2}\b", text)
+    if m:
+        return str(int(m.group(1)))
+    n = _extract_int(text)
     return str(n) if n is not None else _collapse_ws(raw)
 
 
@@ -336,6 +352,18 @@ def normalize_value(predicate: str, value: str, value_text: str = "") -> str:
     if predicate in _MONTH_AGE_PREDICATES:
         return _normalize_month_age(raw)
     if predicate in _YEAR_AGE_PREDICATES:
+        # Prefer an explicit years+months phrase in value or value_text so a
+        # rounded model value ("9" from "8 years 10 months") cannot stick.
+        for blob in (raw, value_text or ""):
+            floored = _normalize_year_age(blob)
+            if re.search(
+                r"\b\d{1,2}\s*(?:years?(?:\s*\(\s*s\s*\))?\s+\d{1,2}\s*months?|"
+                r"y(?:ears?)?\s+\d{1,2}\s*m|"
+                r":\s*\d{1,2})\b",
+                blob,
+                re.IGNORECASE,
+            ):
+                return floored
         return _normalize_year_age(raw)
     if predicate == "grade" or predicate == "retention_year":
         # retention_year may be "2" (grade retained) or a school year — prefer grade token.

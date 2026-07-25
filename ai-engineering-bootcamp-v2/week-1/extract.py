@@ -273,6 +273,8 @@ def _draft_is_skippable(draft: ExtractedFactDraft, source: Source | None = None)
     predicate = _resolve_predicate_name(draft)
     if predicate == "dob" and source is not None and _is_garbage_dob(draft, source):
         return True
+    if predicate == "age_years" and source is not None and _is_spurious_age_years(draft, source):
+        return True
     return False
 
 
@@ -282,6 +284,61 @@ _DOB_ANCHOR_RE = re.compile(
     re.IGNORECASE,
 )
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# Explicit child-age statements only (not PE "grades 5, 7 & 9", not milestones).
+_AGE_YEARS_MONTHS_RE = re.compile(
+    r"\b(?:age\s*:?\s*)?(\d{1,2})\s*years?(?:\s*\(\s*s\s*\))?\s+(\d{1,2})\s*months?\b",
+    re.IGNORECASE,
+)
+_AGE_YEARS_OLD_RE = re.compile(
+    r"\b(?:age\s*:?\s*)?(\d{1,2})\s*-?\s*years?\s*old\b|"
+    r"\b(?:age\s*:?\s*)?(\d{1,2})\s*-?\s*year-?old\b|"
+    r"\bAge\s*:\s*(\d{1,2})\b|"
+    r"\b(?:age\s*:?\s*)(\d{1,2})\s*:\s*\d{1,2}\b|"
+    r"\b(\d{1,2})\s*y\s+\d{1,2}\s*m\b",
+    re.IGNORECASE,
+)
+
+
+def _explicit_age_years_in_text(text: str) -> set[int]:
+    """Whole-year ages stated as the child's age — floored years+months, never rounded."""
+
+    ages: set[int] = set()
+    for match in _AGE_YEARS_MONTHS_RE.finditer(text or ""):
+        ages.add(int(match.group(1)))
+    for match in _AGE_YEARS_OLD_RE.finditer(text or ""):
+        for group in match.groups():
+            if group is not None:
+                ages.add(int(group))
+    return ages
+
+
+def _is_spurious_age_years(draft: ExtractedFactDraft, source: Source) -> bool:
+    """
+    Drop age_years minted by rounding years+months or borrowing a nearby number.
+
+    doc_25 states \"Age: 8 year(s) 10 months\" only — a second value \"9\" is not a
+    child-age claim (rounding or PE \"grades 5, 7 & 9\" leakage). When value_text
+    carries the years+months phrase, keep the draft and let normalize floor it.
+    """
+
+    value = (draft.value or "").strip()
+    value_text = (draft.value_text or "").strip()
+    effective = normalize_value("age_years", value, value_text)
+    try:
+        asserted = int(re.search(r"\d{1,2}", effective).group(0))  # type: ignore[union-attr]
+    except (AttributeError, ValueError, TypeError):
+        return False
+
+    local = _explicit_age_years_in_text(value_text)
+    if local:
+        return asserted not in local
+
+    allowed = _explicit_age_years_in_text(source.content or "")
+    if not allowed:
+        # No explicit age statement in the source → do not invent one.
+        return True
+    return asserted not in allowed
 
 
 def _is_garbage_dob(draft: ExtractedFactDraft, source: Source) -> bool:

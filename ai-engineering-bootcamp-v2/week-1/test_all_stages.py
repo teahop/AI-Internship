@@ -592,6 +592,9 @@ def test_normalize_unit() -> bool:
         ("walked_age_months", "thirteen months", "13"),
         ("walked_age_months", "walked at 13 mos", "13"),
         ("age_years", "7 years old", "7"),
+        ("age_years", "8 years 10 months", "8"),
+        ("age_years", "Age: 8 year(s) 10 months", "8"),
+        ("age_years", "14:9", "14"),
         ("grade", "2nd grade", "2"),
         ("grade", "grade 4", "4"),
         ("grade", "Kindergarten", "K"),
@@ -837,6 +840,98 @@ def test_extract_isolation_unit() -> bool:
         "real dob kept",
         not _draft_is_skippable(real_dob, sources[0]),
         "anchored DOB must not skip",
+    )
+
+    # age_years: floor years+months; reject rounded / borrowed ages (doc_25).
+    from extract import _explicit_age_years_in_text
+
+    age_source = Source(
+        id="doc_25",
+        type="school",
+        date="2019-05-29",
+        label="IEP",
+        content=(
+            "Age: 8 year(s) 10 months\nGrade: 04 Fourth grade\n"
+            "Physical Education Testing (grades 5, 7 & 9): Not applicable"
+        ),
+    )
+    age_ok = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "age_years",
+            "value": "8",
+            "value_text": "Age: 8 year(s) 10 months",
+            "assertion": "asserted",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    age_rounded = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "age_years",
+            "value": "9",
+            "value_text": "Age: 8 year(s) 10 months",
+            "assertion": "asserted",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    age_borrowed = ExtractedFactDraft.model_validate(
+        {
+            "subject": "child",
+            "predicate": "age_years",
+            "value": "9",
+            "value_text": "grades 5, 7 & 9",
+            "assertion": "asserted",
+            "life_stage": "current",
+            "confidence": "stated",
+        }
+    )
+    ok &= check(
+        "explicit ages floor months",
+        _explicit_age_years_in_text(age_source.content) == {8},
+        f"got {_explicit_age_years_in_text(age_source.content)}",
+    )
+    ok &= check(
+        "age_years 8 kept",
+        not _draft_is_skippable(age_ok, age_source),
+        "explicit age 8 must keep",
+    )
+    ok &= check(
+        "rounded age with years+months phrase kept",
+        not _draft_is_skippable(age_rounded, age_source),
+        "value_text years+months should keep for normalize floor",
+    )
+    # normalize collapses rounded value via value_text; skippable still guards
+    # when value_text lacks the years+months phrase.
+    ok &= check(
+        "rounded age via value_text normalizes",
+        normalize_value("age_years", "9", "Age: 8 year(s) 10 months") == "8",
+        f"got {normalize_value('age_years', '9', 'Age: 8 year(s) 10 months')!r}",
+    )
+    ok &= check(
+        "borrowed PE grade as age skipped",
+        _draft_is_skippable(age_borrowed, age_source),
+        "PE grades band must not mint age_years",
+    )
+    ok &= check(
+        "rounded age draft without local phrase skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "age_years",
+                    "value": "9",
+                    "value_text": "approximately 9",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            age_source,
+        ),
+        "value 9 not in source explicit ages",
     )
 
     ok_fact = ExtractedFactDraft(
