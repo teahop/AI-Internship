@@ -33,10 +33,11 @@ Return `DraftProseOutput`:
 4. **Cite ledger facts only.** Every substantive claim — including age, DOB, grade, and every
    other predicate — must trace to a ledger `fact_id`. There is no administrative-framing
    exemption and no uncited biographical statement.
-   **Current age:** when you state the child's present age, cite the derived
-   `age_years` fact (`source_id: computed`, derivation `dob + evaluation_date` —
-   typically `f_computed_age_years`). Do not leave current age uncited, and do not
-   use a historical source age (e.g. "age 8" from an old IEP) as the current age.
+   **Current age (required cite):** whenever prose states the child's **current** age, the
+   matching `statements` entry **must** use fact id `f_computed_age_years` (the derived
+   `age_years` row with `source_id: computed`, derivation `dob + evaluation_date`). Do not
+   leave current age uncited, and do not use a historical source age (e.g. "age 8" from an
+   old IEP) as the current age.
 5. **Chronology from timelines.** Follow each timeline's date order when narrating that
    predicate. Present tense is reserved for the latest entry (`is_latest: true`); earlier
    entries must be framed historically ("as of [date]…", "the [year] file stated…").
