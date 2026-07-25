@@ -604,6 +604,16 @@ def test_normalize_unit() -> bool:
         ("birth_term", "full term", "full-term"),
         ("legal_name", "Justin M.", "Justin M."),
         ("inattention_rating", "6 of 7", "6/7"),
+        (
+            "medications",
+            "1mg guanfacine, 5mg singular, 2.5mg melatonin",
+            "1mg guanfacine, 2.5mg melatonin, 5mg singular",
+        ),
+        (
+            "medications",
+            "1mg of guanfacine, 5mg of singular, 2.5 mg of melatonin",
+            "1mg guanfacine, 2.5mg melatonin, 5mg singular",
+        ),
     ]
     for predicate, raw, want in cases:
         got = normalize_value(predicate, raw)

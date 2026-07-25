@@ -270,6 +270,19 @@ def _normalize_status(predicate: str, raw: str) -> str:
     if predicate == "medications":
         if re.search(r"\b(no|none|not)\b", text):
             return "none"
+        # Collapse near-duplicate spellings of the same med list
+        # ("1mg of guanfacine…" vs "1mg guanfacine…").
+        text = re.sub(r"\bof\b", " ", text)
+        text = re.sub(r"(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|µg)\b", r"\1\2", text)
+        text = _collapse_ws(text)
+        parts = [
+            _collapse_ws(p)
+            for p in re.split(r"\s*,\s*|\s+and\s+", text)
+            if _collapse_ws(p)
+        ]
+        if parts:
+            # Stable order so same set compares equal regardless of source order.
+            return ", ".join(sorted(dict.fromkeys(parts)))
         return text
 
     if predicate == "hospitalizations":
