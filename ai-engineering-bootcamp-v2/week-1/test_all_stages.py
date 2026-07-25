@@ -934,6 +934,161 @@ def test_extract_isolation_unit() -> bool:
         "value 9 not in source explicit ages",
     )
 
+    # grade / iep_status / attendance: current-record claims only.
+    grade_source = Source(
+        id="doc_11",
+        type="school",
+        date="2024-10-02",
+        label="IEP",
+        content=(
+            "Age: 14 year(s) 2 months Grade: 09 Ninth grade\n"
+            "Primary: Specific Learning Disability (SLD)\n"
+            "Not Eligible for Special Education\n"
+            "courses for the remainder of high school:\n"
+            "10th Grade Semester 1: 10 credits of Integrated Math 1\n"
+            "Vocational skills include: attendance, work habits, initiative.\n"
+            "Emma Rose Callahan's attendance seems good at this time.\n"
+            "Offer of FAPE: Specialized Academic Instruction\n"
+        ),
+    )
+    ok &= check(
+        "current grade 9 kept",
+        not _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "grade",
+                    "value": "9",
+                    "value_text": "Grade: 09 Ninth grade",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "current Grade: 09 must keep",
+    )
+    ok &= check(
+        "future grade 10 skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "grade",
+                    "value": "10",
+                    "value_text": "10th Grade Semester 1: 10 credits of Integrated Math 1",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "graduation-track grade must skip",
+    )
+    ok &= check(
+        "active iep kept",
+        not _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "iep_status",
+                    "value": "active",
+                    "value_text": "Offer of FAPE: Specialized Academic Instruction",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "FAPE offer must keep iep_status",
+    )
+    ok &= check(
+        "template not-eligible skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "iep_status",
+                    "value": "none",
+                    "value_text": "Not Eligible for Special Education",
+                    "assertion": "denied",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "blank Not Eligible checkbox must skip",
+    )
+    rebuttal = Source(
+        id="doc_27",
+        type="prior_eval",
+        date="2026-07-17",
+        label="MERIDIAN rebuttal",
+        content=(
+            "My evaluation was noted to only indicate school based eligibility, "
+            "however, this is incorrect as shown on pages 31-32 summarized here: "
+            "DSM-5 criteria for ASD are met."
+        ),
+    )
+    ok &= check(
+        "incidental iep_status skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "iep_status",
+                    "value": "active",
+                    "value_text": "school based eligibility",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            rebuttal,
+        ),
+        "incidental school-based eligibility must skip",
+    )
+    ok &= check(
+        "real attendance kept",
+        not _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "attendance",
+                    "value": "good",
+                    "value_text": "attendance seems good at this time",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "attendance seems good must keep",
+    )
+    ok &= check(
+        "vocational attendance boilerplate skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "attendance",
+                    "value": "regular",
+                    "value_text": "Vocational skills include: attendance, work habits",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "skills-include attendance must skip",
+    )
+
     ok_fact = ExtractedFactDraft(
         subject="child",
         predicate="legal_name",

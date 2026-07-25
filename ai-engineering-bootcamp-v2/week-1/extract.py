@@ -275,6 +275,12 @@ def _draft_is_skippable(draft: ExtractedFactDraft, source: Source | None = None)
         return True
     if predicate == "age_years" and source is not None and _is_spurious_age_years(draft, source):
         return True
+    if predicate == "grade" and source is not None and _is_spurious_grade(draft, source):
+        return True
+    if predicate == "iep_status" and source is not None and _is_spurious_iep_status(draft, source):
+        return True
+    if predicate == "attendance" and _is_spurious_attendance(draft):
+        return True
     return False
 
 
@@ -339,6 +345,172 @@ def _is_spurious_age_years(draft: ExtractedFactDraft, source: Source) -> bool:
         # No explicit age statement in the source → do not invent one.
         return True
     return asserted not in allowed
+
+
+_CURRENT_GRADE_HEADER_RE = re.compile(
+    r"\bGrade\s*:\s*0*(\d{1,2})\b|"
+    r"\bGrade\s*:\s*(K|KG|Kindergarten)\b|"
+    r"\bcurrent(?:ly)?\s+(?:in\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s*grade\b",
+    re.IGNORECASE,
+)
+_FUTURE_GRADE_CONTEXT_RE = re.compile(
+    r"\b("
+    r"\d{1,2}(?:st|nd|rd|th)?\s*grade\s+semester|"
+    r"courses?\s+for\s+the\s+remainder|"
+    r"graduation|credit[- ]?plan|course\s+(?:of\s+study|sequence|plan)|"
+    r"\d+\s*credits?\s+of|"
+    r"remainder\s+of\s+high\s+school"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _current_grades_in_text(text: str) -> set[str]:
+    grades: set[str] = set()
+    for match in _CURRENT_GRADE_HEADER_RE.finditer(text or ""):
+        for group in match.groups():
+            if group is None:
+                continue
+            token = group.strip()
+            if token.lower() in {"k", "kg", "kindergarten"}:
+                grades.add("K")
+            else:
+                grades.add(str(int(token)))
+    return grades
+
+
+def _is_spurious_grade(draft: ExtractedFactDraft, source: Source) -> bool:
+    """
+    Drop future-track / graduation-plan grades that are not current placement.
+
+    doc_11 lists \"10th Grade Semester 1\" in a course plan while current Grade is 9.
+    """
+
+    value = normalize_value("grade", draft.value or "", draft.value_text or "")
+    value_text = (draft.value_text or "").strip()
+    blob = f"{value_text} {draft.value or ''}"
+
+    future_local = bool(_FUTURE_GRADE_CONTEXT_RE.search(blob))
+    current = _current_grades_in_text(source.content or "")
+    if future_local and current and value not in current:
+        return True
+    # value_text is only a semester/course-plan label with no current-grade header.
+    if future_local and not _CURRENT_GRADE_HEADER_RE.search(blob):
+        if current and value not in current:
+            return True
+        if not current:
+            return True
+    return False
+
+
+_IEP_INCIDENTAL_RE = re.compile(
+    r"school[- ]based\s+eligibility|"
+    r"only\s+indicate\s+school",
+    re.IGNORECASE,
+)
+_IEP_TEMPLATE_DENIAL_RE = re.compile(
+    r"not\s+eligible\s+for\s+special\s+education|"
+    r"i\s+understand\s+that\s+my\s+child\s+is\s+not\s+eligible",
+    re.IGNORECASE,
+)
+_IEP_REAL_STATUS_RE = re.compile(
+    r"\b("
+    r"meets?\s+eligibility|eligible\s+under|eligibility\s+criteria|"
+    r"IEP\s+is\s+in\s+place|no\s+(?:prior\s+)?IEP\s+(?:documented|in\s+place)|"
+    r"offer\s+of\s+FAPE|specialized\s+academic\s+instruction|"
+    r"initial\s+IEP|IEP\s+team\s+(?:determined|concluded|recommended|discussed)|"
+    r"primary\s*:\s*\w+"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_spurious_iep_status(draft: ExtractedFactDraft, source: Source) -> bool:
+    """
+    Drop template-checkbox denials and incidental IEP cross-references.
+
+    doc_11 \"Not Eligible\" beside a filled Primary disability is a blank option.
+    doc_27 mentions school-based eligibility while arguing ASD — not an IEP status.
+    """
+
+    value_text = (draft.value_text or "").strip()
+    value = (draft.value or "").strip()
+    blob = f"{value_text} {value}"
+    assertion = draft.assertion if draft.assertion in ("asserted", "denied") else "asserted"
+    content = source.content or ""
+
+    # Incidental mention without a real status determination in the claim.
+    if _IEP_INCIDENTAL_RE.search(blob) and not _IEP_REAL_STATUS_RE.search(blob):
+        return True
+    if not _IEP_REAL_STATUS_RE.search(content) and not re.search(
+        r"\bIEP\b|\beligib", content, re.IGNORECASE
+    ):
+        return True
+    # Soft incidental: source only mentions eligibility in passing (rebuttal letters).
+    # Drop all iep_status from such sources — do not trust invented determination wording.
+    if _IEP_INCIDENTAL_RE.search(content) and not re.search(
+        r"\b(meets?\s+eligibility|offer\s+of\s+FAPE|primary\s*:\s*\w+|"
+        r"IEP\s+is\s+in\s+place|specialized\s+academic\s+instruction)\b",
+        content,
+        re.IGNORECASE,
+    ):
+        return True
+
+    # Unfilled template checkbox denial next to an affirmative eligibility.
+    normalized = normalize_value("iep_status", value, value_text)
+    is_denial = assertion == "denied" or normalized == "none"
+    if is_denial and _IEP_TEMPLATE_DENIAL_RE.search(blob):
+        if re.search(
+            r"Primary\s*:\s*\w+|meets\s+eligibility|Offer of FAPE|"
+            r"Specialized Academic Instruction",
+            content,
+            re.IGNORECASE,
+        ):
+            # Unless the claim itself is an explicit narrative denial.
+            if not re.search(
+                r"\b(team\s+(?:found|determined)|is\s+not\s+eligible|"
+                r"no\s+(?:prior\s+)?IEP\s+(?:documented|in\s+place)|"
+                r"not\s+in\s+place)\b",
+                value_text,
+                re.IGNORECASE,
+            ):
+                return True
+    return False
+
+
+_ATTENDANCE_BOILERPLATE_RE = re.compile(
+    r"vocational\s+skills\s+include|"
+    r"skills\s+include\s*:?\s*[^.]*attendance|"
+    r"attendance\s*/\s*punctuality|"
+    r"where\s+student\s+is\s+in\s+attendance|"
+    r"school\s+of\s+attendance\s*:",
+    re.IGNORECASE,
+)
+_ATTENDANCE_REAL_RE = re.compile(
+    r"\b("
+    r"attendance\s+(?:seems|is|was|has\s+been|appears)|"
+    r"(?:good|poor|irregular|inconsistent|excellent)\s+attendance|"
+    r"absences?|truant|attendance\s+record|misses?\s+(?:school|class)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_spurious_attendance(draft: ExtractedFactDraft) -> bool:
+    """Drop vocational-skill list / calendar boilerplate posing as attendance status."""
+
+    value_text = (draft.value_text or "").strip()
+    blob = f"{value_text} {draft.value or ''}"
+    if _ATTENDANCE_BOILERPLATE_RE.search(blob) and not _ATTENDANCE_REAL_RE.search(blob):
+        return True
+    # Invented "regular" from non-attendance uses of the word.
+    value = normalize_value("attendance", draft.value or "", value_text)
+    if value == "regular" and not re.search(
+        r"attendance.{0,40}regular|regular.{0,40}attendance", blob, re.IGNORECASE
+    ):
+        if not _ATTENDANCE_REAL_RE.search(blob):
+            return True
+    return False
 
 
 def _is_garbage_dob(draft: ExtractedFactDraft, source: Source) -> bool:
