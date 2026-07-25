@@ -433,9 +433,12 @@ _IEP_NARRATIVE_DENIAL_RE = re.compile(
     r"\b("
     r"no\s+(?:prior\s+)?IEP\s+(?:documented|in\s+place|on\s+file)|"
     r"team\s+(?:found|determined|concluded).{0,60}not\s+eligible|"
-    r"(?:child|student)\s+is\s+not\s+eligible|"
     r"not\s+in\s+place"
     r")\b",
+    re.IGNORECASE,
+)
+_IEP_SIGNATURE_CHECKBOX_RE = re.compile(
+    r"i\s+understand\s+that\s+my\s+child\s+is\s+(?:not\s+eligible|no\s+longer\s+eligible)",
     re.IGNORECASE,
 )
 
@@ -474,6 +477,20 @@ def _is_spurious_iep_status(draft: ExtractedFactDraft, source: Source) -> bool:
     # Unfilled template checkbox denial next to an affirmative eligibility.
     normalized = normalize_value("iep_status", value, value_text)
     is_denial = assertion == "denied" or normalized == "none"
+    if is_denial and _IEP_SIGNATURE_CHECKBOX_RE.search(blob):
+        return True
+    has_affirmative_eligibility = bool(
+        _IEP_PRIMARY_FILLED_RE.search(content)
+        and re.search(
+            r"Offer of FAPE|Specialized Academic Instruction|meets\s+eligibility|"
+            r"IEP\s+team\s+consented|eligible\s+under",
+            content,
+            re.IGNORECASE,
+        )
+    )
+    if is_denial and has_affirmative_eligibility:
+        # Active IEP packet: denials are form options, not findings.
+        return True
     if is_denial and _IEP_PRIMARY_FILLED_RE.search(content) and _IEP_TEMPLATE_DENIAL_RE.search(
         content
     ):

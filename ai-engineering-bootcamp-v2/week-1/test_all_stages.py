@@ -1023,6 +1023,24 @@ def test_extract_isolation_unit() -> bool:
         ),
         "blank Not Eligible checkbox must skip",
     )
+    ok &= check(
+        "signature not-eligible checkbox skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "iep_status",
+                    "value": "none",
+                    "value_text": "I understand that my child is not eligible for special education.",
+                    "assertion": "denied",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "signature-page not-eligible checkbox must skip",
+    )
     rebuttal = Source(
         id="doc_27",
         type="prior_eval",
