@@ -77,6 +77,8 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 3. **Tests assert detected-against-expected** (precision, recall, false positives) —
    not “non-empty” or “looks ok.”
 
+AskRequest shape, source fields, and size limits: [`fixtures/FIXTURE_RULES.md`](fixtures/FIXTURE_RULES.md).
+
 ## Guardrails (no clinical topic lists)
 
 | Check | Role |

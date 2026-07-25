@@ -2,7 +2,11 @@
 """
 Stage 5.3 — re-measure after subject enum + provenance stamp.
 
-Same metrics as 5.1/5.2A plus subject stability. Fixture expectations unchanged.
+Same metrics as 5.1/5.2A plus subject stability.
+
+Default fixture: realistic anonymized packet (`fixture_001_ask_small.json`).
+That case has no expected_* yet — fact/conflict P/R are reported as 1.0 when
+expectations are absent; use predicate/subject/temporality stability instead.
 """
 
 from __future__ import annotations
@@ -19,9 +23,6 @@ from extract import build_ledger
 from provider import ModelProvider, compute_cost_usd
 from schemas import Child, Source
 from test_all_stages import (
-    HEALTH_FIXTURE_PATH,
-    HISTORY_FIXTURE_PATH,
-    NO_CONFLICT_FIXTURE_PATH,
     _load_fixture,
     _score_ledger_facts,
     score_conflicts,
@@ -29,10 +30,9 @@ from test_all_stages import (
 
 WORKDIR = Path(__file__).resolve().parent
 N_RUNS = 5
+FIXTURE_001_SMALL_PATH = WORKDIR / "fixtures" / "fixture_001_ask_small.json"
 FIXTURES = (
-    ("history", HISTORY_FIXTURE_PATH),
-    ("health", HEALTH_FIXTURE_PATH),
-    ("no_conflict", NO_CONFLICT_FIXTURE_PATH),
+    ("fixture_001_small", FIXTURE_001_SMALL_PATH),
 )
 
 
