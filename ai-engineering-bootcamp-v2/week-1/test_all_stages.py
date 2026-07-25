@@ -16,9 +16,12 @@ import httpx
 from extract import (
     _extraction_user_payload,
     build_ledger,
+    dedupe_facts,
     draft_to_fact,
+    extract_source_to_facts,
     fact_id_for_source,
     merge_ledger_with_extracted,
+    split_source_content,
 )
 from grouping import record_value_conflicts
 from normalize import normalize_qualifier, normalize_value
@@ -1854,6 +1857,131 @@ def test_incremental_extract_unit() -> bool:
     return ok
 
 
+def test_chunking_unit() -> bool:
+    """
+    Stage 6.3: oversized narrative content is split; facts merge without duplicates.
+    """
+
+    print("\n=== Stage 6.3 unit: narrative chunking + dedupe ===")
+    from provider import StructuredResult
+    from schemas import ExtractedFactDraft, SourceExtraction
+
+    ok = True
+    short = "Birth: full-term.\n\nWalked at 13 months."
+    ok &= check(
+        "short stays one chunk",
+        split_source_content(short, limit=200) == [short],
+        f"chunks={split_source_content(short, limit=200)!r}",
+    )
+
+    para = "Parent reports full-term birth with no NICU stay. "
+    long = ("\n\n").join([para * 8 for _ in range(40)])
+    chunks = split_source_content(long, limit=500)
+    ok &= check("oversized splits", len(chunks) > 1, f"n_chunks={len(chunks)}")
+    ok &= check(
+        "each chunk under limit",
+        all(len(c) <= 500 for c in chunks),
+        f"lengths={[len(c) for c in chunks[:5]]}...",
+    )
+    ok &= check(
+        "chunks cover content",
+        "".join(chunks).replace(" ", "")[:200] in long.replace(" ", "")
+        or all(p.strip() in long for p in chunks[:3]),
+        "chunk text missing from original",
+    )
+
+    # Dedupe across chunk extractions.
+    child = Child(initials="A.R.", dob="2017-03-15", evaluation_date="2026-07-16")
+    source = Source(
+        id="parent-long-2026",
+        type="parent",
+        date="2026-06-01",
+        label="Long parent interview",
+        content=long,
+        doc_class="narrative",
+    )
+    twin = Fact(
+        id=fact_id_for_source(source.id, 1),
+        subject="child",
+        predicate="birth_term",
+        value="full-term",
+        value_text="full-term birth",
+        qualifier=None,
+        assertion="asserted",
+        source_id=source.id,
+        source_date=source.date,
+        reporter=None,
+        life_stage="birth",
+        grade=None,
+        temporality="durable",
+        confidence="stated",
+    )
+    twin2 = twin.model_copy(update={"id": fact_id_for_source(source.id, 2)})
+    other = twin.model_copy(
+        update={
+            "id": fact_id_for_source(source.id, 3),
+            "predicate": "walked_age_months",
+            "value": "13",
+            "value_text": "walked at 13 months",
+            "life_stage": "infancy",
+        }
+    )
+    deduped = dedupe_facts([twin, twin2, other])
+    ok &= check(
+        "dedupe collapses twins",
+        len(deduped) == 2 and {f.predicate for f in deduped} == {"birth_term", "walked_age_months"},
+        f"deduped={[f.predicate for f in deduped]}",
+    )
+
+    # Mock provider: one call per chunk; each returns the same birth_term draft.
+    call_sizes: list[int] = []
+
+    class _ChunkProvider:
+        def complete_structured(self, **kwargs):  # type: ignore[no-untyped-def]
+            user = kwargs["user"]
+            call_sizes.append(len(user))
+            draft = ExtractedFactDraft(
+                subject="child",
+                predicate="birth_term",
+                value="full-term",
+                value_text="full-term birth",
+                qualifier=None,
+                assertion="asserted",
+                reporter=None,
+                life_stage="birth",
+                grade=None,
+                confidence="stated",
+            )
+            return StructuredResult(
+                data=SourceExtraction(facts=[draft]),
+                total_tokens=10,
+                prompt_tokens=8,
+                completion_tokens=2,
+            )
+
+    facts, total, _, _ = extract_source_to_facts(
+        _ChunkProvider(),  # type: ignore[arg-type]
+        child=child,
+        source=source,
+        model="gpt-4o-mini",
+        chunk_limit=500,
+    )
+    ok &= check("multiple chunk calls", len(call_sizes) > 1, f"calls={len(call_sizes)}")
+    ok &= check(
+        "payloads stay bounded",
+        all(size < 500 + 800 for size in call_sizes),  # chunk + JSON envelope headroom
+        f"call_sizes={call_sizes[:5]}...",
+    )
+    birth = [f for f in facts if f.predicate == "birth_term"]
+    ok &= check(
+        "chunk facts deduped",
+        len(birth) == 1 and birth[0].value == "full-term",
+        f"birth_facts={[(f.id, f.value) for f in birth]}",
+    )
+    ok &= check("token sum", total == 10 * len(call_sizes), f"total={total} calls={len(call_sizes)}")
+    return ok
+
+
 def test_ask_age_guard(base: str) -> bool:
     """/ask still enforces confirm_synthetic + force_bad_age (pipeline under the hood)."""
 
@@ -2971,6 +3099,7 @@ def main() -> int:
     results.append(("validators.provenance", test_provenance_validator_unit()))
     results.append(("stage45.unit", test_derived_and_coverage_unit()))
     results.append(("extract.incremental", test_incremental_extract_unit()))
+    results.append(("extract.chunking", test_chunking_unit()))
     results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
     results.append(("draft.smoke", test_draft_smoke()))

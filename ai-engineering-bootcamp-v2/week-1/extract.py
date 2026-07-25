@@ -44,6 +44,10 @@ _PROMPT_TEMPLATE = (_DIR / "extract_prompt.md").read_text(encoding="utf-8")
 
 LEDGER_VERSION = "1"
 
+# Soft cap on source content per extraction call. Oversized narrative docs are
+# split, extracted per chunk, then de-duplicated (Stage 6.3).
+EXTRACT_CHUNK_CHAR_LIMIT = 12_000
+
 
 def fact_id_for_source(source_id: str, index: int) -> str:
     """
@@ -55,6 +59,90 @@ def fact_id_for_source(source_id: str, index: int) -> str:
 
     safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", source_id).strip("_") or "source"
     return f"f_{safe}_{index:03d}"
+
+
+def split_source_content(
+    content: str,
+    *,
+    limit: int = EXTRACT_CHUNK_CHAR_LIMIT,
+) -> list[str]:
+    """
+    Split oversized narrative content into chunks under ``limit`` characters.
+
+    Prefers paragraph boundaries, then whitespace; hard-splits only as a last resort.
+    """
+
+    text = content or ""
+    if len(text) <= limit:
+        return [text] if text else [""]
+
+    paragraphs = re.split(r"\n\s*\n", text)
+    chunks: list[str] = []
+    current = ""
+
+    def _flush() -> None:
+        nonlocal current
+        if current.strip():
+            chunks.append(current.strip())
+        current = ""
+
+    def _append_piece(piece: str) -> None:
+        nonlocal current
+        piece = piece.strip()
+        if not piece:
+            return
+        if len(piece) > limit:
+            _flush()
+            # Hard-split a single oversized paragraph.
+            for start in range(0, len(piece), limit):
+                chunks.append(piece[start : start + limit])
+            return
+        candidate = f"{current}\n\n{piece}".strip() if current else piece
+        if len(candidate) <= limit:
+            current = candidate
+            return
+        _flush()
+        current = piece
+
+    for para in paragraphs:
+        if len(para) <= limit:
+            _append_piece(para)
+            continue
+        # Oversized paragraph: split on whitespace runs first.
+        parts = re.split(r"(\s+)", para)
+        buf = ""
+        for part in parts:
+            if len(buf) + len(part) <= limit:
+                buf += part
+            else:
+                if buf.strip():
+                    _append_piece(buf)
+                buf = part
+        if buf.strip():
+            _append_piece(buf)
+
+    _flush()
+    return chunks or [text[:limit]]
+
+
+def fact_dedupe_key(fact: Fact) -> tuple[str, str, str | None, str, str]:
+    """Same subject+predicate+qualifier+value+source_id → one fact after chunk merge."""
+
+    return (fact.subject, fact.predicate, fact.qualifier, fact.value, fact.source_id)
+
+
+def dedupe_facts(facts: list[Fact]) -> list[Fact]:
+    """Keep first occurrence of each dedupe key; preserve order."""
+
+    seen: set[tuple[str, str, str | None, str, str]] = set()
+    out: list[Fact] = []
+    for fact in facts:
+        key = fact_dedupe_key(fact)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(fact)
+    return out
 
 
 def _predicate_list_for_prompt() -> str:
@@ -249,6 +337,53 @@ def extract_source_facts(
     )
 
 
+def extract_source_to_facts(
+    provider: ModelProvider,
+    *,
+    child: Child,
+    source: Source,
+    model: str,
+    chunk_limit: int = EXTRACT_CHUNK_CHAR_LIMIT,
+) -> tuple[list[Fact], int, int, int]:
+    """
+    Extract one source to finalized Fact rows.
+
+    Oversized narrative content is chunked; per-chunk drafts are finalized,
+    de-duplicated (subject+predicate+qualifier+value+source_id), and renumbered.
+    """
+
+    chunks = split_source_content(source.content, limit=chunk_limit)
+    drafts: list[ExtractedFactDraft] = []
+    total_tokens = prompt_tokens = completion_tokens = 0
+
+    for chunk_text in chunks:
+        chunk_source = source if len(chunks) == 1 else source.model_copy(update={"content": chunk_text})
+        chunk_drafts, total, p_tok, c_tok = extract_source_facts(
+            provider, child=child, source=chunk_source, model=model
+        )
+        drafts.extend(chunk_drafts)
+        total_tokens += total
+        prompt_tokens += p_tok
+        completion_tokens += c_tok
+
+    facts: list[Fact] = []
+    for index, draft in enumerate(drafts, start=1):
+        facts.append(
+            draft_to_fact(
+                draft,
+                fact_id=fact_id_for_source(source.id, index),
+                source=source,
+                child=child,
+            )
+        )
+    facts = dedupe_facts(facts)
+    facts = [
+        f.model_copy(update={"id": fact_id_for_source(source.id, i)})
+        for i, f in enumerate(facts, start=1)
+    ]
+    return facts, total_tokens, prompt_tokens, completion_tokens
+
+
 def merge_ledger_with_extracted(
     *,
     child: Child,
@@ -339,21 +474,14 @@ def build_ledger(
             facts_by_source[source.id] = []
             continue
 
-        drafts, total, p_tok, c_tok = extract_source_facts(
+        source_facts, total, p_tok, c_tok = extract_source_to_facts(
             provider, child=child, source=source, model=model
         )
         tokens_by_source[source.id] = total
         prompt_tokens += p_tok
         completion_tokens += c_tok
 
-        source_facts: list[Fact] = []
-        for index, draft in enumerate(drafts, start=1):
-            fact = draft_to_fact(
-                draft,
-                fact_id=fact_id_for_source(source.id, index),
-                source=source,
-                child=child,
-            )
+        for fact in source_facts:
             if needs_predicate_review(fact.predicate) and fact.predicate not in review:
                 review.append(fact.predicate)
             if (
@@ -361,7 +489,6 @@ def build_ledger(
                 and fact.subject not in subject_review
             ):
                 subject_review.append(fact.subject)
-            source_facts.append(fact)
         facts_by_source[source.id] = source_facts
 
     ledger = merge_ledger_with_extracted(

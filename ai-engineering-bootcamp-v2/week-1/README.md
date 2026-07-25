@@ -143,6 +143,11 @@ recorded on the ledger for coverage but produce no narrative history facts —
 their payload belongs to Assessment Results (Phase 3). Default `doc_class` is
 `narrative` for backward compatibility.
 
+**Oversized narrative docs are chunked, not failed.** Content over
+`EXTRACT_CHUNK_CHAR_LIMIT` is split (paragraph-aware), extracted per chunk, and
+de-duplicated on subject+predicate+qualifier+value+source_id so one call stays
+under model limits.
+
 ## Smoke tests
 
 ```bash
