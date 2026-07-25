@@ -384,22 +384,24 @@ def _is_spurious_grade(draft: ExtractedFactDraft, source: Source) -> bool:
     Drop future-track / graduation-plan grades that are not current placement.
 
     doc_11 lists \"10th Grade Semester 1\" in a course plan while current Grade is 9.
+    When the source declares ``Grade: N``, only that placement is allowed.
     """
 
     value = normalize_value("grade", draft.value or "", draft.value_text or "")
     value_text = (draft.value_text or "").strip()
     blob = f"{value_text} {draft.value or ''}"
+    content = source.content or ""
+
+    current = _current_grades_in_text(content)
+    if current:
+        # Explicit Grade: header(s) are authoritative for this source.
+        if value not in current:
+            return True
+        return False
 
     future_local = bool(_FUTURE_GRADE_CONTEXT_RE.search(blob))
-    current = _current_grades_in_text(source.content or "")
-    if future_local and current and value not in current:
-        return True
-    # value_text is only a semester/course-plan label with no current-grade header.
     if future_local and not _CURRENT_GRADE_HEADER_RE.search(blob):
-        if current and value not in current:
-            return True
-        if not current:
-            return True
+        return True
     return False
 
 
@@ -420,6 +422,19 @@ _IEP_REAL_STATUS_RE = re.compile(
     r"offer\s+of\s+FAPE|specialized\s+academic\s+instruction|"
     r"initial\s+IEP|IEP\s+team\s+(?:determined|concluded|recommended|discussed)|"
     r"primary\s*:\s*\w+"
+    r")\b",
+    re.IGNORECASE,
+)
+_IEP_PRIMARY_FILLED_RE = re.compile(
+    r"Primary\s*:\s*(?!None\b)([A-Za-z][\w\s/()-]{1,60})",
+    re.IGNORECASE,
+)
+_IEP_NARRATIVE_DENIAL_RE = re.compile(
+    r"\b("
+    r"no\s+(?:prior\s+)?IEP\s+(?:documented|in\s+place|on\s+file)|"
+    r"team\s+(?:found|determined|concluded).{0,60}not\s+eligible|"
+    r"(?:child|student)\s+is\s+not\s+eligible|"
+    r"not\s+in\s+place"
     r")\b",
     re.IGNORECASE,
 )
@@ -459,6 +474,12 @@ def _is_spurious_iep_status(draft: ExtractedFactDraft, source: Source) -> bool:
     # Unfilled template checkbox denial next to an affirmative eligibility.
     normalized = normalize_value("iep_status", value, value_text)
     is_denial = assertion == "denied" or normalized == "none"
+    if is_denial and _IEP_PRIMARY_FILLED_RE.search(content) and _IEP_TEMPLATE_DENIAL_RE.search(
+        content
+    ):
+        # Keep only an explicit narrative denial — not the blank form option.
+        if not _IEP_NARRATIVE_DENIAL_RE.search(value_text):
+            return True
     if is_denial and _IEP_TEMPLATE_DENIAL_RE.search(blob):
         if re.search(
             r"Primary\s*:\s*\w+|meets\s+eligibility|Offer of FAPE|"
@@ -466,14 +487,7 @@ def _is_spurious_iep_status(draft: ExtractedFactDraft, source: Source) -> bool:
             content,
             re.IGNORECASE,
         ):
-            # Unless the claim itself is an explicit narrative denial.
-            if not re.search(
-                r"\b(team\s+(?:found|determined)|is\s+not\s+eligible|"
-                r"no\s+(?:prior\s+)?IEP\s+(?:documented|in\s+place)|"
-                r"not\s+in\s+place)\b",
-                value_text,
-                re.IGNORECASE,
-            ):
+            if not _IEP_NARRATIVE_DENIAL_RE.search(value_text):
                 return True
     return False
 
