@@ -20,6 +20,7 @@ Run:  python fixtures/build_fixture_001.py
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -35,6 +36,21 @@ SCORE_REPORTS = {
 # Near-duplicate RIAS-2 exports of doc_17's session — dropped (FIXTURE_RULES §4,
 # confirmed w/ TJ). doc_17 (canonical PDF) stays so coverage knows RIAS-2 exists.
 DROP = {"doc_18", "doc_19"}
+
+# De-id smudge: synthetic-name replacement left a trailing "Jasmine" on some IEP
+# legal-name headers (doc_11, doc_25). Scrub before writing so content matches
+# the body name and does not invent a false legal_name conflict (TJ 2026-07-25).
+_JASMINE_FULL = "Emma Rose Callahan Jasmine"
+_JASMINE_TRAIL = re.compile(r"(?<=Emma Rose Callahan)\s+Jasmine\b")
+
+
+def sanitize_content(text: str) -> str:
+    """Remove known de-identification artifacts from source content."""
+
+    text = text.replace(_JASMINE_FULL, "Emma Rose Callahan")
+    text = _JASMINE_TRAIL.sub("", text)
+    return text
+
 
 # --- Per-file answer keys (narrative docs only) ---------------------------
 # Conservative: only clearly-stated facts. Thin candidates are EXCLUDED and
@@ -196,7 +212,7 @@ def main() -> None:
             "type": src["type"],
             "date": src["date"],
             "label": src["label"],
-            "content": src["content"],
+            "content": sanitize_content(src["content"]),
             "doc_class": doc_class,
         }
         fixture = {
@@ -303,9 +319,9 @@ def main() -> None:
                        "same-date allergy_status/medications collision. Key asserts the CURRENT 2024 values only."},
             {"hazard": "Age quirk: reports state 14 (2024/2025) and 15 (2026) but DOB 2010-03-22 computes 15/16. "
                        "This is an age-validator recomputation finding, not a cross-source conflict."},
-            {"hazard": "IEP headers (doc_25, doc_11) read 'Emma Rose Callahan Jasmine' in the legal-name field. "
-                       "Treated as a de-identification / full-vs-common-name artifact and excluded from legal_name; "
-                       "not encoded as a header-vs-body name conflict (TJ)."},
+            {"hazard": "IEP headers formerly read 'Emma Rose Callahan Jasmine' (de-id smudge). "
+                       "Scrubbed to 'Emma Rose Callahan' in build_fixture_001.sanitize_content so "
+                       "content matches body legal_name; no header-vs-body name conflict expected."},
         ],
         "dropped_sources": [
             {"id": "doc_18", "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"},

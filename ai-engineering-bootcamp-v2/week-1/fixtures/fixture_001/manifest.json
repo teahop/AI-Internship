@@ -351,7 +351,7 @@
       "hazard": "Age quirk: reports state 14 (2024/2025) and 15 (2026) but DOB 2010-03-22 computes 15/16. This is an age-validator recomputation finding, not a cross-source conflict."
     },
     {
-      "hazard": "IEP headers (doc_25, doc_11) read 'Emma Rose Callahan Jasmine' in the legal-name field. Treated as a de-identification / full-vs-common-name artifact and excluded from legal_name; not encoded as a header-vs-body name conflict (TJ)."
+      "hazard": "IEP headers formerly read 'Emma Rose Callahan Jasmine' (de-id smudge). Scrubbed to 'Emma Rose Callahan' in build_fixture_001.sanitize_content so content matches body legal_name; no header-vs-body name conflict expected."
     }
   ],
   "dropped_sources": [
