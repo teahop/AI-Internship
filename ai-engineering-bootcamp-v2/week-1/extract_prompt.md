@@ -89,6 +89,13 @@ Do **not** mint compound predicates like `peanut_allergy_status`. Predicates tha
 - **`iep_status`**: extract only the **active** determination in the narrative (in place / not eligible / exited). Ignore unfilled template checkboxes ("Not Eligible for Special Education" left blank next to a checked eligibility), boilerplate option lists, and stale copied blocks when the document also states a current determination — prefer the current statement. Do **not** mint `iep_status` from an incidental cross-reference (e.g. "school-based eligibility" mentioned while arguing a clinical diagnosis in another document).
 - **`attendance`**: extract only a real attendance record or status about this child ("attendance seems good", absences, truancy). Ignore vocational-skills boilerplate lists ("Vocational skills include: attendance, work habits…"), "School of Attendance:" labels, and service-calendar "where student is in attendance" language.
 
+## Identity, trauma, testing demeanor, and milestone ages
+
+- **`legal_name` (student):** emit whenever this source names the **student**, even without a "Student Legal Name:" label. Include invoices ("Evaluation for Emma Rose Callahan"), permission forms ("parent of Emma Rose Callahan"), contracts ("Client's child, Emma Rose Callahan"), and OCR/narrative headers that pair the name with DOB. Default `subject` is `child`. Parent, clinician, and payee names are **not** `legal_name` unless the claim is explicitly about that adult.
+- **`trauma_history` vs `developmental_history`:** when the source states early trauma, neglect, abuse, or "history of trauma," emit `trauma_history` (short paraphrase as `value`). Do **not** fold that into `developmental_history`. A diagnosis label alone (e.g. PTSD on a list) is not enough without narrative trauma language; explicit trauma narrative is.
+- **`testing_impression` vs `behavioral_concern`:** examiner notes about in-session demeanor — cooperation, affect during testing, attention/concentration on tasks, response to difficult items — are `testing_impression`. Do **not** use `behavioral_concern` (or `anxiety_impression`) for standardized-testing / interview session demeanor.
+- **`walked_age_months` when adoption age co-occurs:** if one paragraph has both "adopted at N months" and "walking at about N mos," emit `walked_age_months` from the **walking** clause only (`value` = `N`, `confidence: hedged` when "about"/"around"). Adoption age is not a walking milestone.
+
 ## Hard rules
 
 1. Extract only what this source states or explicitly denies. Omit gaps; do not fill with typical-development assumptions.
