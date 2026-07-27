@@ -1106,6 +1106,42 @@ def test_extract_isolation_unit() -> bool:
         ),
         "skills-include attendance must skip",
     )
+    ok &= check(
+        "defers_to blank template skipped",
+        _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "defers_to",
+                    "value": "iep dated ___________",
+                    "value_text": "IEP dated ___________",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "underscore placeholder must skip",
+    )
+    ok &= check(
+        "defers_to real target kept",
+        not _draft_is_skippable(
+            ExtractedFactDraft.model_validate(
+                {
+                    "subject": "child",
+                    "predicate": "defers_to",
+                    "value": "school health file and IEP",
+                    "value_text": "take health background from the school health file and the IEP",
+                    "assertion": "asserted",
+                    "life_stage": "current",
+                    "confidence": "stated",
+                }
+            ),
+            grade_source,
+        ),
+        "named deferral target must keep",
+    )
 
     ok_fact = ExtractedFactDraft(
         subject="child",

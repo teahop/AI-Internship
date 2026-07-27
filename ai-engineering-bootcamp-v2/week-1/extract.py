@@ -270,6 +270,8 @@ def _draft_is_skippable(draft: ExtractedFactDraft, source: Source | None = None)
     raw = (draft.value or "").strip()
     if not raw or raw.lower() in {"null", "none-stated", "n/a", "undefined"}:
         return True
+    if _is_placeholder_value(draft):
+        return True
     predicate = _resolve_predicate_name(draft)
     if predicate == "dob" and source is not None and _is_garbage_dob(draft, source):
         return True
@@ -280,6 +282,38 @@ def _draft_is_skippable(draft: ExtractedFactDraft, source: Source | None = None)
     if predicate == "iep_status" and source is not None and _is_spurious_iep_status(draft, source):
         return True
     if predicate == "attendance" and _is_spurious_attendance(draft):
+        return True
+    return False
+
+
+_PLACEHOLDER_VALUE_RE = re.compile(
+    r"("
+    r"_{3,}"  # iep dated ___________
+    r"|^\s*t\.?\s*b\.?\s*d\.?\s*$"
+    r"|^\s*n\.?\s*/?\s*a\.?\s*$"
+    r"|^\s*not\s+(?:yet\s+)?(?:available|known|determined)\s*$"
+    r"|\bxxx+\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_placeholder_value(draft: ExtractedFactDraft) -> bool:
+    """
+    Drop facts whose value is an unfilled template blank.
+
+    Example: defers_to value ``iep dated ___________`` from an IEP form field
+    that was never filled in — not a real deferral target.
+    """
+
+    value = (draft.value or "").strip()
+    value_text = (draft.value_text or "").strip()
+    if not value and not value_text:
+        return True
+    if _PLACEHOLDER_VALUE_RE.search(value) or _PLACEHOLDER_VALUE_RE.search(value_text):
+        return True
+    # Value is only placeholder punctuation / underscores.
+    if re.fullmatch(r"[\s_\.\-/xX]+", value):
         return True
     return False
 
