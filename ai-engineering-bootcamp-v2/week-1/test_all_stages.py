@@ -16,6 +16,7 @@ import httpx
 from extract import (
     _extraction_user_payload,
     build_ledger,
+    consolidate_medications_facts,
     dedupe_facts,
     draft_to_fact,
     extract_source_to_facts,
@@ -2716,6 +2717,60 @@ def test_chunking_unit() -> bool:
         "dedupe collapses twins",
         len(deduped) == 2 and {f.predicate for f in deduped} == {"birth_term", "walked_age_months"},
         f"deduped={[f.predicate for f in deduped]}",
+    )
+
+    med_a = Fact(
+        id="doc_11:1",
+        subject="child",
+        predicate="medications",
+        value="geodon, trileptal, vyvanse",
+        value_text="Geodon, Trileptal, and Vyvanse",
+        assertion="asserted",
+        source_id="doc_11",
+        source_date="2024-10-02",
+        life_stage="current",
+        temporality="as_of",
+        confidence="stated",
+    )
+    med_b = Fact(
+        id="doc_11:2",
+        subject="child",
+        predicate="medications",
+        value="hypothyroid medication",
+        value_text="hypothyroid medication",
+        assertion="asserted",
+        source_id="doc_11",
+        source_date="2024-10-02",
+        life_stage="current",
+        temporality="as_of",
+        confidence="stated",
+    )
+    med_none = Fact(
+        id="doc_11:3",
+        subject="child",
+        predicate="medications",
+        value="none",
+        value_text="no medications",
+        assertion="denied",
+        source_id="doc_11",
+        source_date="2024-10-02",
+        life_stage="current",
+        temporality="as_of",
+        confidence="stated",
+    )
+    consolidated = consolidate_medications_facts([med_a, med_b])
+    ok &= check(
+        "medications partials merge",
+        len(consolidated) == 1
+        and "geodon" in consolidated[0].value
+        and "hypothyroid" in consolidated[0].value,
+        f"merged={consolidated[0].value if consolidated else None!r}",
+    )
+    kept = consolidate_medications_facts([med_a, med_none])
+    ok &= check(
+        "medications none vs named kept",
+        len(kept) == 2,
+        f"kept={len(kept)} (want both for conflict)",
     )
 
     # Mock provider: one call per chunk; each returns the same birth_term draft.

@@ -145,6 +145,63 @@ def dedupe_facts(facts: list[Fact]) -> list[Fact]:
     return out
 
 
+def consolidate_medications_facts(facts: list[Fact]) -> list[Fact]:
+    """
+    Merge same-source partial medications lists into one fact.
+
+    Several mentions in one document are not competing values. An explicit
+    ``none`` denial alongside named meds is left intact for conflict detection.
+    """
+
+    by_source: dict[str, list[Fact]] = {}
+    for fact in facts:
+        if fact.predicate == "medications":
+            by_source.setdefault(fact.source_id, []).append(fact)
+
+    replacements: dict[str, list[Fact]] = {}
+    for source_id, group in by_source.items():
+        if len(group) <= 1:
+            continue
+        named = [f for f in group if (f.value or "").strip().lower() != "none"]
+        nones = [f for f in group if (f.value or "").strip().lower() == "none"]
+        if nones and named:
+            continue  # keep contradiction
+        if nones and not named:
+            replacements[source_id] = [nones[0]]
+            continue
+        combined = normalize_value(
+            "medications",
+            ", ".join(f.value for f in named if f.value),
+            "; ".join(f.value_text for f in named if f.value_text),
+        )
+        richest = max(named, key=lambda f: len(f.value_text or ""))
+        replacements[source_id] = [
+            richest.model_copy(
+                update={
+                    "value": combined,
+                    "value_text": clip_value_text(
+                        "; ".join(f.value_text for f in named if f.value_text)
+                    ),
+                }
+            )
+        ]
+
+    if not replacements:
+        return facts
+
+    out: list[Fact] = []
+    flushed: set[str] = set()
+    for fact in facts:
+        if fact.predicate != "medications" or fact.source_id not in replacements:
+            out.append(fact)
+            continue
+        if fact.source_id in flushed:
+            continue
+        out.extend(replacements[fact.source_id])
+        flushed.add(fact.source_id)
+    return out
+
+
 def _predicate_list_for_prompt() -> str:
     lines: list[str] = []
     for spec in PREDICATE_VOCABULARY:
@@ -729,6 +786,7 @@ def extract_source_to_facts(
             # One bad draft must not drop the rest of the source.
             continue
     facts = dedupe_facts(facts)
+    facts = consolidate_medications_facts(facts)
     facts = [
         f.model_copy(update={"id": fact_id_for_source(source.id, i)})
         for i, f in enumerate(facts, start=1)
