@@ -1042,10 +1042,10 @@ def test_extract_isolation_unit() -> bool:
         "signature-page not-eligible checkbox must skip",
     )
     rebuttal = Source(
-        id="doc_27",
+        id="rebuttal_letter",
         type="prior_eval",
         date="2026-07-17",
-        label="MERIDIAN rebuttal",
+        label="eligibility rebuttal",
         content=(
             "My evaluation was noted to only indicate school based eligibility, "
             "however, this is incorrect as shown on pages 31-32 summarized here: "
@@ -2234,7 +2234,7 @@ def test_case_manifest_unit() -> bool:
     )
     ok &= check(
         "counts.narrative",
-        counts.get("narrative") == 9 == len(narrative_ids),
+        counts.get("narrative") == 8 == len(narrative_ids),
         f"counts.narrative={counts.get('narrative')} actual={len(narrative_ids)}",
     )
     ok &= check(

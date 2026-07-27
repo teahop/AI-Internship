@@ -2,7 +2,7 @@
 """
 Regenerate the fixture_001 per-file case from the de-identified raw corpus.
 
-Source of truth for *content*: ``fixture_001_ask.json`` (26 sources, case E.C.).
+Source of truth for *content*: ``fixture_001_ask.json`` (25 sources, case E.C.).
 This script re-shapes that corpus into the incremental model:
 
   fixtures/fixture_001/<doc_id>.json   one self-contained /ask-shaped fixture per source
@@ -35,7 +35,9 @@ SCORE_REPORTS = {
 }
 # Near-duplicate RIAS-2 exports of doc_17's session — dropped (FIXTURE_RULES §4,
 # confirmed w/ TJ). doc_17 (canonical PDF) stays so coverage knows RIAS-2 exists.
-DROP = {"doc_18", "doc_19"}
+# doc_27 (MERIDIAN review letter) was included erroneously and removed from the
+# ask corpus; listed here so dropped_sources stays an audit trail.
+DROP = {"doc_18", "doc_19", "doc_27"}
 
 # De-id smudge: synthetic-name replacement left a trailing "Jasmine" on some IEP
 # legal-name headers (doc_11, doc_25). Scrub before writing so content matches
@@ -177,21 +179,6 @@ KEYS: dict[str, dict] = {
         ],
         "expected_conflicts": [],
     },
-    # --- 2026 MERIDIAN review / rebuttal letter (LEP) ---
-    "doc_27": {
-        "expected_ledger_facts": [
-            {"source_id": "doc_27", "predicate": "legal_name", "value": "Emma Rose Callahan"},
-            {"source_id": "doc_27", "predicate": "dob", "value": "2010-03-22"},
-            {"source_id": "doc_27", "predicate": "age_years", "value": "15"},  # stated "15-year-old" (DOB computes 16 -> age-validator finding, not a conflict)
-            {"source_id": "doc_27", "predicate": "developmental_concern_onset"},  # DSM crit C: early-period delayed speech, toe walking, sensory
-        ],
-        "expected_facts": [
-            {"source_id": "doc_27",
-             "statement": "Early history includes delayed speech, lack of social initiation, toe walking, and sensory sensitivities.",
-             "life_stage": "preschool"},
-        ],
-        "expected_conflicts": [],
-    },
 }
 
 
@@ -270,7 +257,7 @@ def main() -> None:
         # --- Timelines (as_of, different dates) — NOT conflicts ---
         "expected_timelines": [
             {"predicate": "grade", "sequence": "4 (2019) -> 9 (2024/2025-04) -> 10 (2025-06)"},
-            {"predicate": "age_years", "sequence": "3 (2013) -> 8 (2019) -> 14 (2024) -> 15 (2026, stated)"},
+            {"predicate": "age_years", "sequence": "3 (2013) -> 8 (2019) -> 14 (2024/2025)"},
             {"predicate": "iep_status", "sequence": "none/ineligible (2013) -> in place SLD+OHI (2019) -> in place SLD (2024)"},
             {"predicate": "medications", "sequence": "none (2013) -> guanfacine/Singulair/melatonin (2019) -> Geodon/Trileptal/Vyvanse (2024)"},
             {"predicate": "allergy_status", "sequence": "none (2013) -> seasonal (2019) -> no known (2024)"},
@@ -290,12 +277,7 @@ def main() -> None:
             {"item": "Diagnoses: ASD L2, ADHD-PI (severe), PTSD, Bipolar, SLD (written expression, math)", "source_id": "doc_13"},
             {"item": "Diagnoses: RAD and ADHD", "source_id": "doc_11"},
             {"item": "Diagnosis: ADHD (AD/HD)", "source_id": "doc_25"},
-            {"item": "DIAGNOSIS DISPUTE: MERIDIAN evaluator (Dr. [EVALUATOR], 2026-04-13) concluded NO ASD; "
-                     "Pierce concludes ASD Level 2. Largest disagreement in the case — a diagnosis has no "
-                     "predicate, so this is a coverage gap, NOT an expected_conflict.",
-             "source_id": "doc_27"},
             {"item": "Adoption / foster placement / multiple placements (no predicate)", "source_id": "doc_26"},
-            {"item": "Residential treatment history (no predicate)", "source_id": "doc_27"},
         ],
         # --- Candidate facts: derivable but thin/hedged — EXCLUDED from keys (TJ) ---
         "candidate_facts": [
@@ -317,7 +299,7 @@ def main() -> None:
                        "appendectomy, guanfacine) alongside the current 2024 statement (no known allergies, "
                        "Geodon/Trileptal/Vyvanse). A naive extractor may emit both and create a same-source, "
                        "same-date allergy_status/medications collision. Key asserts the CURRENT 2024 values only."},
-            {"hazard": "Age quirk: reports state 14 (2024/2025) and 15 (2026) but DOB 2010-03-22 computes 15/16. "
+            {"hazard": "Age quirk: reports state 14 (2024/2025) but DOB 2010-03-22 computes 15. "
                        "This is an age-validator recomputation finding, not a cross-source conflict."},
             {"hazard": "IEP headers formerly read 'Emma Rose Callahan Jasmine' (de-id smudge). "
                        "Scrubbed to 'Emma Rose Callahan' in build_fixture_001.sanitize_content so "
@@ -326,6 +308,10 @@ def main() -> None:
         "dropped_sources": [
             {"id": "doc_18", "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"},
             {"id": "doc_19", "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"},
+            {
+                "id": "doc_27",
+                "reason": "MERIDIAN review letter included erroneously; removed from case + ask corpus",
+            },
         ],
         "counts": {
             "sources_total": len(kept),

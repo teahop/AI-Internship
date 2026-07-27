@@ -31,7 +31,6 @@
     "doc_24",
     "doc_25",
     "doc_26",
-    "doc_27",
     "doc_28"
   ],
   "files": [
@@ -212,14 +211,6 @@
       "label": "Prior early childhood diagnostic assessment (age 3)"
     },
     {
-      "id": "doc_27",
-      "fixture": "doc_27.json",
-      "type": "other",
-      "date": "2026-07-17",
-      "doc_class": "narrative",
-      "label": "Review letter for MERIDIAN application"
-    },
-    {
       "id": "doc_28",
       "fixture": "doc_28.json",
       "type": "assessment",
@@ -236,7 +227,7 @@
     },
     {
       "predicate": "age_years",
-      "sequence": "3 (2013) -> 8 (2019) -> 14 (2024) -> 15 (2026, stated)"
+      "sequence": "3 (2013) -> 8 (2019) -> 14 (2024/2025)"
     },
     {
       "predicate": "iep_status",
@@ -291,16 +282,8 @@
       "source_id": "doc_25"
     },
     {
-      "item": "DIAGNOSIS DISPUTE: MERIDIAN evaluator (Dr. [EVALUATOR], 2026-04-13) concluded NO ASD; Pierce concludes ASD Level 2. Largest disagreement in the case — a diagnosis has no predicate, so this is a coverage gap, NOT an expected_conflict.",
-      "source_id": "doc_27"
-    },
-    {
       "item": "Adoption / foster placement / multiple placements (no predicate)",
       "source_id": "doc_26"
-    },
-    {
-      "item": "Residential treatment history (no predicate)",
-      "source_id": "doc_27"
     }
   ],
   "candidate_facts": [
@@ -348,7 +331,7 @@
       "hazard": "doc_11 copies a stale 2019 health block forward verbatim (seasonal allergies, appendectomy, guanfacine) alongside the current 2024 statement (no known allergies, Geodon/Trileptal/Vyvanse). A naive extractor may emit both and create a same-source, same-date allergy_status/medications collision. Key asserts the CURRENT 2024 values only."
     },
     {
-      "hazard": "Age quirk: reports state 14 (2024/2025) and 15 (2026) but DOB 2010-03-22 computes 15/16. This is an age-validator recomputation finding, not a cross-source conflict."
+      "hazard": "Age quirk: reports state 14 (2024/2025) but DOB 2010-03-22 computes 15. This is an age-validator recomputation finding, not a cross-source conflict."
     },
     {
       "hazard": "IEP headers formerly read 'Emma Rose Callahan Jasmine' (de-id smudge). Scrubbed to 'Emma Rose Callahan' in build_fixture_001.sanitize_content so content matches body legal_name; no header-vs-body name conflict expected."
@@ -362,12 +345,16 @@
     {
       "id": "doc_19",
       "reason": "near-duplicate RIAS-2 export of doc_17 (FIXTURE_RULES §4)"
+    },
+    {
+      "id": "doc_27",
+      "reason": "MERIDIAN review letter included erroneously; removed from case + ask corpus"
     }
   ],
   "counts": {
-    "sources_total": 24,
-    "narrative": 9,
+    "sources_total": 23,
+    "narrative": 8,
     "score_report": 15,
-    "dropped": 2
+    "dropped": 3
   }
 }

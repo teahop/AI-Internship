@@ -448,7 +448,8 @@ def _is_spurious_iep_status(draft: ExtractedFactDraft, source: Source) -> bool:
     Drop template-checkbox denials and incidental IEP cross-references.
 
     doc_11 \"Not Eligible\" beside a filled Primary disability is a blank option.
-    doc_27 mentions school-based eligibility while arguing ASD — not an IEP status.
+    Rebuttal-style letters may mention school-based eligibility while arguing ASD —
+    that is not an IEP status determination.
     """
 
     value_text = (draft.value_text or "").strip()
