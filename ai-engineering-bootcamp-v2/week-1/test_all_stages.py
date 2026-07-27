@@ -3587,6 +3587,217 @@ TESTS = [
 ]
 
 
+def test_terminology_unit() -> bool:
+    """Molly terminology worksheet: REPLACE / FLAG / carve-outs (no live calls)."""
+
+    print("\n=== Terminology unit ===")
+    from terminology import (
+        ABILITY_SCORE_BANDS,
+        BEHAVIOR_RATING_BANDS,
+        RuleAction,
+        RuleScope,
+        TERMINOLOGY_RULES,
+        find_terminology_violations,
+    )
+
+    ok = True
+
+    # Empty / clean string → no hits
+    clean = find_terminology_violations("")
+    ok &= check("empty string", len(clean.hits) == 0 and clean.rewritten == "", f"{clean}")
+    clean2 = find_terminology_violations("Scores fall in the Average range.")
+    ok &= check(
+        "clean prose",
+        len(clean2.hits) == 0 and clean2.rewritten == clean2.original,
+        f"hits={clean2.hits}",
+    )
+
+    # REPLACE pairs: case-insensitive, preserve surrounding text
+    replace_cases = [
+        ("a Psycho-Educational evaluation", "a psychoeducational evaluation", "psycho-educational"),
+        ("needs Re-evaluation soon", "needs reevaluation soon", "re-evaluation"),
+        ("each Sub-test score", "each subtest score", "sub-test"),
+        ("non-verbal reasoning spared", "nonverbal reasoning spared", "non-verbal"),
+        ("social emotional skills", "social-emotional skills", "social emotional"),
+        ("a self report form", "a self-report form", "self report"),
+        ("problem solving tasks", "problem-solving tasks", "problem solving"),
+        ("visual spatial index", "visual-spatial index", "visual spatial"),
+        ("was off task today", "was off-task today", "off task"),
+        ("open ended questions", "open-ended questions", "open ended"),
+        ("one on one support", "one-on-one support", "one on one"),
+        (
+            "a learning-disabled student",
+            "a student with a Specific Learning Disability",
+            "learning-disabled student",
+        ),
+        (
+            "confined to a wheelchair",
+            "uses a wheelchair to navigate the environment",
+            "confined to a wheelchair",
+        ),
+        ("suffers from asthma", "has asthma", "suffers from"),
+        ("victim of trauma", "experienced trauma", "victim of"),
+    ]
+    for original, expected, label in replace_cases:
+        result = find_terminology_violations(original, scope=RuleScope.NARRATIVE)
+        ok &= check(
+            f"REPLACE {label}",
+            result.rewritten == expected
+            and any(h.action == RuleAction.REPLACE for h in result.hits),
+            f"rewritten={result.rewritten!r} hits={result.hits}",
+        )
+
+    # multi-step reversal: multistep → multi-step; multi-step left alone
+    ms = find_terminology_violations("completed a multistep direction")
+    ok &= check(
+        "multistep → multi-step",
+        ms.rewritten == "completed a multi-step direction",
+        f"rewritten={ms.rewritten!r}",
+    )
+    ms2 = find_terminology_violations("completed a multi-step direction")
+    ok &= check(
+        "multi-step left alone",
+        ms2.rewritten == ms2.original and len(ms2.hits) == 0,
+        f"hits={ms2.hits}",
+    )
+
+    # REPLACE inside quotes → FLAG, no substitution
+    quoted = find_terminology_violations('Teacher said "psycho-educational testing" yesterday.')
+    ok &= check(
+        "quoted REPLACE becomes FLAG",
+        quoted.rewritten == quoted.original
+        and len(quoted.hits) == 1
+        and quoted.hits[0].action == RuleAction.FLAG
+        and quoted.hits[0].in_quotation,
+        f"result={quoted}",
+    )
+
+    # Protected instrument name containing a banned substring stays untouched
+    protected = find_terminology_violations(
+        "Normative Weakness was listed on the profile.",
+        scope=RuleScope.NARRATIVE,
+    )
+    ok &= check(
+        "protected name with banned substring untouched",
+        protected.rewritten == protected.original
+        and not any(h.banned.lower() == "weakness" for h in protected.hits),
+        f"rewritten={protected.rewritten!r} hits={protected.hits}",
+    )
+    protected_instr = find_terminology_violations(
+        "On the BASC-3, ratings were Average.",
+        scope=RuleScope.NARRATIVE,
+    )
+    ok &= check(
+        "protected instrument untouched",
+        protected_instr.rewritten == protected_instr.original,
+        f"rewritten={protected_instr.rewritten!r} hits={protected_instr.hits}",
+    )
+    # Banned substring inside a protected construct phrase
+    nv_construct = find_terminology_violations(
+        "Nonverbal reasoning was a relative strength.",
+        scope=RuleScope.NARRATIVE,
+    )
+    ok &= check(
+        "nonverbal reasoning protected",
+        nv_construct.rewritten == nv_construct.original
+        and not any(h.banned.lower() == "nonverbal" for h in nv_construct.hits),
+        f"hits={nv_construct.hits}",
+    )
+
+    # Person described as nonverbal → FLAG, no substitution
+    nv_person = find_terminology_violations(
+        "The student is nonverbal and uses AAC.",
+        scope=RuleScope.NARRATIVE,
+    )
+    ok &= check(
+        "nonverbal person FLAG",
+        nv_person.rewritten == nv_person.original
+        and any(
+            h.banned.lower() == "nonverbal" and h.action == RuleAction.FLAG for h in nv_person.hits
+        ),
+        f"hits={nv_person.hits}",
+    )
+
+    # FLAG rules: highlight, no substitution
+    flag_samples = [
+        ("a weakness in decoding", "weakness"),
+        ("notable deficits in working memory", "deficit"),
+        ("he was bad at math facts", "bad at"),
+        ("unable to complete the task", "unable to"),
+    ]
+    for text, label in flag_samples:
+        result = find_terminology_violations(text, scope=RuleScope.NARRATIVE)
+        ok &= check(
+            f"FLAG {label}",
+            result.rewritten == result.original
+            and len(result.hits) >= 1
+            and all(h.action == RuleAction.FLAG for h in result.hits),
+            f"hits={result.hits}",
+        )
+
+    # emotional disturbance: REPLACE in narrative; FLAG in eligibility
+    ed_narr = find_terminology_violations(
+        " qualifies under emotional disturbance criteria.",
+        scope=RuleScope.NARRATIVE,
+    )
+    ok &= check(
+        "ED REPLACE in narrative",
+        "emotional disability" in ed_narr.rewritten
+        and any(h.action == RuleAction.REPLACE for h in ed_narr.hits),
+        f"rewritten={ed_narr.rewritten!r} hits={ed_narr.hits}",
+    )
+    ed_elig = find_terminology_violations(
+        " qualifies under emotional disturbance criteria.",
+        scope=RuleScope.ELIGIBILITY,
+    )
+    ok &= check(
+        "ED FLAG in eligibility",
+        ed_elig.rewritten == ed_elig.original
+        and any(h.action == RuleAction.FLAG for h in ed_elig.hits),
+        f"rewritten={ed_elig.rewritten!r} hits={ed_elig.hits}",
+    )
+
+    # grade-level / age-appropriate position-aware hyphenation
+    gl_noun = find_terminology_violations("meets grade level standards")
+    ok &= check(
+        "grade-level before noun",
+        gl_noun.rewritten == "meets grade-level standards",
+        f"rewritten={gl_noun.rewritten!r}",
+    )
+    gl_adv = find_terminology_violations("she reads at grade-level")
+    ok &= check(
+        "grade level after preposition",
+        gl_adv.rewritten == "she reads at grade level",
+        f"rewritten={gl_adv.rewritten!r}",
+    )
+    gl_ok = find_terminology_violations("meets grade-level standards; she reads at grade level")
+    ok &= check(
+        "correct grade-level forms untouched",
+        gl_ok.rewritten == gl_ok.original and len(gl_ok.hits) == 0,
+        f"hits={gl_ok.hits}",
+    )
+
+    # Score band tables present (lowest <70 band intentionally omitted)
+    ok &= check(
+        "ability bands omit <70",
+        all("<70" not in b.standard_score for b in ABILITY_SCORE_BANDS)
+        and any(b.label == "Average" for b in ABILITY_SCORE_BANDS),
+        f"bands={[b.label for b in ABILITY_SCORE_BANDS]}",
+    )
+    ok &= check(
+        "behavior rating bands seeded",
+        len(BEHAVIOR_RATING_BANDS) == 5,
+        f"n={len(BEHAVIOR_RATING_BANDS)}",
+    )
+    ok &= check(
+        "seed Extremely Low rule preserved",
+        any(r.banned == "Extremely Low" and r.preferred == "Very Low" for r in TERMINOLOGY_RULES),
+        "missing seed rule",
+    )
+
+    return ok
+
+
 def test_draft_validators_unit() -> bool:
     """Stage 4: terminology, temporal framing, section-empty, conflict mention."""
 
@@ -3613,7 +3824,8 @@ def test_draft_validators_unit() -> bool:
     hits = find_terminology_violations("SS falls in the Extremely Low range.")
     ok &= check(
         "terminology hit",
-        hits == [("Extremely Low", "Very Low")],
+        list(hits) == [("Extremely Low", "Very Low")]
+        and hits.rewritten == "SS falls in the Very Low range.",
         f"hits={hits}",
     )
     flags = validate_terminology_flags("SS falls in the Extremely Low range.")
@@ -4226,6 +4438,7 @@ def main() -> int:
     results.append(("extract.chunking", test_chunking_unit()))
     results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
+    results.append(("terminology.unit", test_terminology_unit()))
     results.append(("draft.age_cite_retry", test_draft_age_cite_retry_unit()))
     results.append(("draft.smoke", test_draft_smoke()))
     results.append(("extract.stage25", test_extract_stage25()))
