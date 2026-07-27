@@ -17,6 +17,7 @@ build/
 
 # Virtual environments
 .venv/
+.venv_*/
 venv/
 env/
 
@@ -28,6 +29,10 @@ env/
 .idea/
 .vscode/
 .cursor/
+
+# Local run and measurement output
+*.log
+measure_stage*_variance_results.json
 
 # Local scratch (not part of the course repo)
 ai-eng-demo-1/
