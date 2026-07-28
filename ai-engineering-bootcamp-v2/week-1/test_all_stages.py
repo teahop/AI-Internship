@@ -4067,6 +4067,95 @@ def test_draft_validators_unit() -> bool:
     return ok
 
 
+def test_annotated_review_unit() -> bool:
+    """Review-view renderer: multi-id spans, overlaps, unanchored, empty round-trip."""
+
+    print("\n=== Annotated review view unit ===")
+    from draft import render_annotated_review
+    from schemas import DraftProseOutput, DraftStatement
+
+    ok = True
+
+    # Two fact_ids on one span → both appear at span end.
+    multi = DraftProseOutput(
+        prose="Emma walked at 19 months and spoke at about 2 years.",
+        statements=[
+            DraftStatement(
+                quote="Emma walked at 19 months and spoke at about 2 years.",
+                statement="Milestones were delayed.",
+                fact_ids=["f_walk", "f_speech"],
+            )
+        ],
+    )
+    annotated, unanchored = render_annotated_review(multi)
+    ok &= check(
+        "multi-id annotation",
+        "[f_walk, f_speech]" in annotated
+        and annotated.startswith("Emma walked at 19 months and spoke at about 2 years. [f_walk, f_speech]")
+        and unanchored == [],
+        f"annotated={annotated!r} unanchored={unanchored}",
+    )
+    ok &= check(
+        "clean prose unchanged",
+        multi.prose == "Emma walked at 19 months and spoke at about 2 years.",
+        f"prose={multi.prose!r}",
+    )
+
+    # Overlapping quotes → both annotated, no crash.
+    overlap = DraftProseOutput(
+        prose="She is kind and curious.",
+        statements=[
+            DraftStatement(
+                quote="She is kind and curious.",
+                statement="Whole sentence.",
+                fact_ids=["f_a"],
+            ),
+            DraftStatement(
+                quote="kind and curious",
+                statement="Trait span.",
+                fact_ids=["f_b"],
+            ),
+        ],
+    )
+    annotated_o, unanchored_o = render_annotated_review(overlap)
+    ok &= check(
+        "overlapping spans",
+        "[f_a]" in annotated_o and "[f_b]" in annotated_o and unanchored_o == [],
+        f"annotated={annotated_o!r}",
+    )
+
+    # Quote absent → unanchored soft failure, no exception.
+    missing = DraftProseOutput(
+        prose="Emma is fifteen.",
+        statements=[
+            DraftStatement(
+                quote="Emma is 15 years old.",
+                statement="Paraphrased age.",
+                fact_ids=["f_age"],
+            )
+        ],
+    )
+    annotated_m, unanchored_m = render_annotated_review(missing)
+    ok &= check(
+        "unanchored quote",
+        unanchored_m == ["Emma is 15 years old."]
+        and "unanchored: Emma is 15 years old." in annotated_m
+        and annotated_m.startswith("Emma is fifteen."),
+        f"annotated={annotated_m!r} unanchored={unanchored_m}",
+    )
+
+    # Empty statements → clean prose round-trips unchanged.
+    empty = DraftProseOutput(prose="Just prose.", statements=[])
+    annotated_e, unanchored_e = render_annotated_review(empty)
+    ok &= check(
+        "empty statements round-trip",
+        annotated_e == "Just prose." and unanchored_e == [],
+        f"annotated={annotated_e!r}",
+    )
+
+    return ok
+
+
 def test_draft_age_cite_retry_unit() -> bool:
     """
     Model-free: missing f_computed_age_years cite fails validation; retry recovers
@@ -4526,6 +4615,7 @@ def main() -> int:
     results.append(("extract.score_triage", test_score_report_triage_unit()))
     results.append(("draft.validators", test_draft_validators_unit()))
     results.append(("terminology.unit", test_terminology_unit()))
+    results.append(("draft.annotated_review", test_annotated_review_unit()))
     results.append(("draft.age_cite_retry", test_draft_age_cite_retry_unit()))
     results.append(("draft.smoke", test_draft_smoke()))
     results.append(("extract.stage25", test_extract_stage25()))

@@ -671,6 +671,20 @@ class DraftResponse(BaseModel):
         default_factory=list,
         description="Secondary coverage signal — citations to missing fact_ids",
     )
+    annotated_prose: str | None = Field(
+        default=None,
+        description=(
+            "Review-mode copy of answer.prose with fact_ids appended at each "
+            "statement quote span. Clean prose stays in answer.prose for Molly."
+        ),
+    )
+    unanchored_quotes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "statement.quote values not found verbatim in prose — soft failures "
+            "surfaced for diagnosis, not hard errors."
+        ),
+    )
     tokens_used: int
     tokens_by_stage: dict[str, int] = Field(
         default_factory=dict,

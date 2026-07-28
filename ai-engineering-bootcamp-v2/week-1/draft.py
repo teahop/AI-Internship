@@ -175,6 +175,50 @@ def _disagreement_to_report_conflict(d: Disagreement, ledger: Ledger) -> Conflic
     return Conflict(topic=d.topic, versions=versions)
 
 
+def render_annotated_review(output: DraftProseOutput) -> tuple[str, list[str]]:
+    """
+    Build the annotated review copy from a DraftProseOutput.
+
+    Clean `prose` is for Molly (paste-ready). The annotated copy appends each
+    statement's fact_ids at the end of its `quote` span for TJ's verification
+    pass. Overlapping / nested spans are expected once sentences fuse — annotate
+    at span end; do not attempt fancy interleaving.
+
+    A quote missing from prose is a soft failure: listed in the returned
+    unanchored list and reported in the annotated footer ("unanchored: …").
+    Never raises.
+    """
+
+    prose = output.prose or ""
+    unanchored: list[str] = []
+    inserts: list[tuple[int, str]] = []
+
+    for stmt in output.statements:
+        quote = (stmt.quote or "").strip()
+        if not quote:
+            unanchored.append(stmt.statement[:120] or "(empty quote)")
+            continue
+        idx = prose.find(quote)
+        if idx < 0:
+            unanchored.append(quote)
+            continue
+        end = idx + len(quote)
+        ids = ", ".join(stmt.fact_ids)
+        inserts.append((end, f" [{ids}]"))
+
+    # Apply from the end so earlier indices stay valid.
+    inserts.sort(key=lambda pair: pair[0], reverse=True)
+    annotated = prose
+    for end, marker in inserts:
+        annotated = annotated[:end] + marker + annotated[end:]
+
+    if unanchored:
+        footer = "\n".join(f"unanchored: {q}" for q in unanchored)
+        annotated = f"{annotated}\n\n{footer}" if annotated else footer
+
+    return annotated, unanchored
+
+
 def _output_to_report_section(
     output: DraftProseOutput,
     *,
@@ -247,6 +291,8 @@ def draft_section(
             review=review,
             unverified_citations=[],
             failed_citation_attempts=[],
+            annotated_prose=None,
+            unanchored_quotes=[],
             tokens_used=0,
             tokens_by_stage=tokens_by_stage,
             model=model,
@@ -337,6 +383,8 @@ def draft_section(
         model, result.prompt_tokens, result.completion_tokens
     ) + compute_cost_usd(entailment_model, e_prompt, e_completion)
 
+    annotated_prose, unanchored_quotes = render_annotated_review(output)
+
     return DraftResponse(
         section_populated=True,
         empty_reason=None,
@@ -344,6 +392,8 @@ def draft_section(
         review=ReviewQueue(items=review_items),
         unverified_citations=list(output.unverified_citations),
         failed_citation_attempts=failed_citations,
+        annotated_prose=annotated_prose,
+        unanchored_quotes=unanchored_quotes,
         tokens_used=tokens_used,
         tokens_by_stage=tokens_by_stage,
         model=model,
