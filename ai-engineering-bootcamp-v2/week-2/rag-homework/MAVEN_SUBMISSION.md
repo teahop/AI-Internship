@@ -6,22 +6,25 @@
 
 ## 1. Live URL
 
-> Fill after Render deploy (homework service, branch `homework/session-2-rag`):
-
 ```text
-LIVE_URL=https://YOUR-HOMEWORK-SERVICE.onrender.com
+LIVE_URL=https://session-2-rag-homework.onrender.com
 ```
+
+Dashboard: https://dashboard.render.com/web/srv-d9khshu1egvs73fksdl0  
+Branch: `homework/session-2-rag` (homework only — not Molly/`week-1`).
+
+**Before curls work:** in Render → Environment, set `OPENAI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` (same as local `.env`), then wait for deploy to go live.
 
 Health check:
 
 ```bash
-curl -s "$LIVE_URL/health" | python3 -m json.tool
+curl -s "https://session-2-rag-homework.onrender.com/health" | python3 -m json.tool
 ```
 
 ## 2. Ingest curl (handbook)
 
 ```bash
-LIVE_URL=https://YOUR-HOMEWORK-SERVICE.onrender.com
+LIVE_URL=https://session-2-rag-homework.onrender.com
 
 curl -s -X POST "$LIVE_URL/ingest" \
   -H 'content-type: application/json' \
