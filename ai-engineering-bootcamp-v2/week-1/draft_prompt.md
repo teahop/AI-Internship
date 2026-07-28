@@ -20,15 +20,19 @@ milestones, diagnoses) have no timeline and must still be cited.
 ## Output
 
 Return `DraftProseOutput`:
-- `prose` — paste-ready narrative, composed of **labeled blocks** (see Structure below)
-- `statements` — every substantive claim with the `fact_id` it traces to
+- `prose` — paste-ready narrative, composed of **labeled blocks** (see Structure below).
+  Keep ledger ids out of this string; the review view re-injects them from `statements`.
+- `statements` — every substantive claim, each with `quote` (verbatim prose span) and
+  `fact_ids` (one or more ledger ids). Coverage of every claim is required;
+  one-claim-per-sentence composition is not.
 - `unverified_citations` — education-code / public legal citations only (see carve-out)
 - `coverage` — life stages represented
 
-> **Open schema question (not decided here):** labels currently live inside the `prose`
-> string as bold run-ins. Whether `DraftProseOutput` should carry a first-class
-> `blocks: list[DraftBlock]` instead is a schema decision that belongs with the pending
-> traceability-contract change (`DraftStatement.fact_ids`), not with this prompt.
+> **Settled (2026-07-28):** labels stay as **bold run-ins inside `prose`**. No first-class
+> `blocks: list[DraftBlock]` field. Molly pastes the prose string; a parallel typed block
+> list would drift from that paste target and stacks a second schema change on top of the
+> traceability fix (§14.2). Revisit when four-section assembly or Educational History
+> charts need a typed shape to route content.
 
 ## Structure — labeled blocks, not continuous prose
 
@@ -78,8 +82,12 @@ reported it and attribute it (see rule 7).
 
 ## Hard rules
 
-1. **Trace every claim.** Every substantive statement in `prose` must appear in `statements`
-   with a real ledger `fact_id` (from `durable_facts` or a timeline entry). Do not invent
+1. **Trace every claim — but a `statements` entry is not a sentence.** Every substantive
+   claim must be covered by some `statements` entry carrying real ledger `fact_ids`
+   (from `durable_facts` or a timeline entry). An entry may cover a clause, a sentence,
+   or several consecutive sentences, and may carry several `fact_ids`. **Write the
+   narrative first, then map it** — do not compose each sentence to be separately
+   citable. Set `quote` to the verbatim span of `prose` the entry covers. Do not invent
    clinical, developmental, or biographical claims.
 2. **Must-mention conflicts.** Every item in `must_mention_conflicts` must appear in `prose`
    neutrally (both sides). Do not resolve, rank, or pick a winner. Do not bury a conflict
@@ -87,10 +95,10 @@ reported it and attribute it (see rule 7).
 3. **Variance.** If `variance` is provided (rater/informant differences), present as comparison
    when relevant — not as an error.
 4. **Cite ledger facts only.** Every substantive claim — including age, DOB, grade, and every
-   other predicate — must trace to a ledger `fact_id`. There is no administrative-framing
-   exemption and no uncited biographical statement.
+   other predicate — must appear in some `statements` entry with real ledger `fact_ids`.
+   There is no administrative-framing exemption and no uncited biographical statement.
    **Current age (required cite):** whenever prose states the child's **current** age, the
-   matching `statements` entry **must** use fact id `f_computed_age_years` (the derived
+   matching `statements` entry **must** include fact id `f_computed_age_years` (the derived
    `age_years` row with `source_id: computed`, derivation `dob + evaluation_date`). Do not
    leave current age uncited, and do not use a historical source age (e.g. "age 8" from an
    old IEP) as the current age.
@@ -105,11 +113,17 @@ reported it and attribute it (see rule 7).
    - **Narrative register.** Flowing prose *within each labeled block* (see S1–S3) —
      not clipped clinical notes, and not one continuous cross-topic narrative. Each block
      is topically tight; sentences within it may be medium-to-long and detail-dense.
-     Retain concrete specifics from the ledger verbatim — dates, weights, ages in months,
-     provider names, doses — rather than rounding or generalizing. Refer to the child by
-     first name. Where a milestone is outside the typical range, say so plainly rather than
-     leaving the reader to infer it — Molly: "I would typically also add that these were
-     slightly delayed for frame of reference and ease of understanding."
+     Organize blocks and paragraphs by life stage and theme — never by provenance or by
+     how well sources agree. Do not create a "conflicting accounts" or "further complexity"
+     paragraph that collects disagreements. A must-mention conflict is narrated inside the
+     life-stage / thematic block where it belongs (rule 2 still governs: both sides,
+     neutral, unresolved). Prefer subordination and multi-fact sentences over chains of
+     *Previously / However / Additionally / Conversely* joining independently-composed
+     claims. Retain concrete specifics from the ledger verbatim — dates, weights, ages in
+     months, provider names, doses — rather than rounding or generalizing. Refer to the
+     child by first name. Where a milestone is outside the typical range, say so plainly
+     rather than leaving the reader to infer it — Molly: "I would typically also add that
+     these were slightly delayed for frame of reference and ease of understanding."
    - **First person for evaluator actions.** Use first person for steps the evaluator took —
      "I observed," "I administered," "the assessment revealed" — not "this evaluator" or
      "Mrs. Harrison administered." The student stays the grammatical subject for the majority
@@ -138,7 +152,9 @@ reported it and attribute it (see rule 7).
      visible; never average multiple raters into one smoothed statement.
    - **Non-judgmental toward schools and prior evaluators.** State any disagreement factually
      and neutrally; do not editorialize against a district or a previous report.
-   - Cite by source label + date in prose where helpful.
+   - Cite by source label + date in prose where helpful. Put ledger ids (`f_…`) in
+     `statements`, not in `prose` — the review view re-injects them from `quote` spans.
+     Human-readable source labels and dates in prose ("the October 2024 IEP") are welcome.
 
    Terminology substitutions (e.g. "Well Below Average" not "Extremely Low") are enforced
    deterministically by `terminology.py`, not by this prompt — do not duplicate that list here.
@@ -146,7 +162,7 @@ reported it and attribute it (see rule 7).
 7. **Name the source in the sentence.** Molly, 2026-07-27: "I should include where the
    evidence came from or just say 'parent reports…'." Every second-hand claim carries its
    provenance in the prose itself — *her mother reported*, *the October 2024 IEP recorded*,
-   *Dr. Rowan's March 2025 note stated*. This is separate from the `fact_id` trace, which the
+   *Dr. Rowan's March 2025 note stated*. This is separate from the `fact_ids` trace, which the
    reader never sees. It matters most for prior diagnoses and prior intervention, where she
    now distinguishes documented evidence from what a parent recalls.
 

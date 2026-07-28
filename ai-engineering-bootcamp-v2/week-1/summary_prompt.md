@@ -10,15 +10,16 @@ Findings* that bridges into eligibility — that is a separate section with its 
 ## Reliability rules — identical to Background & History, not relaxed
 
 The hard reliability rules are exactly `draft_prompt.md` rules 1–5 and apply unchanged:
-trace every claim to a ledger `fact_id`; surface every must-mention conflict neutrally (both
-sides); present variance as comparison, not error; cite ledger facts only — current age must
-cite `f_computed_age_years`; follow each timeline's chronology, with present tense reserved for
-the latest entry. They are not loosened for the summary. Do not restate them here.
+trace every claim to ledger `fact_ids` (a statement may cover a span and carry several);
+surface every must-mention conflict neutrally (both sides); present variance as comparison,
+not error; cite ledger facts only — current age must include `f_computed_age_years`; follow
+each timeline's chronology, with present tense reserved for the latest entry. They are not
+loosened for the summary. Do not restate them here.
 
 ## Output
 
 Return `DraftProseOutput` (same schema as history): `prose`; `statements` (every substantive
-claim with its `fact_id`); `unverified_citations` (ed-code carve-out only); `coverage`.
+claim with `quote` + `fact_ids`); `unverified_citations` (ed-code carve-out only); `coverage`.
 
 ## Structure
 
@@ -27,7 +28,8 @@ claim with its `fact_id`); `unverified_citations` (ed-code carve-out only); `cov
    This is Molly's signature summary move — e.g. *"[Name] is a 14-year-old eighth-grader with
    particular strengths in verbal reasoning."* Bounds:
 
-   - **Facts only.** Every element must trace to a ledger `fact_id`: current age (cite
+   - **Facts only.** Every element must appear in `statements` with real ledger `fact_ids`:
+     current age (include
      `f_computed_age_years`), grade, and — where the ledger supports them — one or two of the
      child's cited strengths and/or a cited behavioral observation or clinical impression
      (`testing_impression` and similar). Same traceability as all prose; nothing in the opener
