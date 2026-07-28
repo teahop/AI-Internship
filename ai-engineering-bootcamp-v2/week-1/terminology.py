@@ -99,8 +99,24 @@ class ScoreBand:
     notes: str = ""
 
 
+# Normative-weakness cutoff. RULED 2026-07-28: a score is a *normative*
+# weakness (low relative to same-age peers nationally) at standard score < 85.
+# Molly was shown both candidate thresholds from her own explanation — SS <= 79
+# / 10th percentile, and "some people use below 85" — and chose 85.
+#
+# This is the normative test only. A *relative* (personal) weakness is defined
+# against the student's own mean and needs a derivation the ledger does not
+# currently carry, so the weakness rules below stay FLAG, not REPLACE.
+NORMATIVE_WEAKNESS_MAX_SS: int = 85
+
+
 # Ability / processing bands from Molly's returned worksheet §1.
-# Part 4 #1: do NOT encode the <70 band yet (Very Low vs Exceptionally Low).
+# Part 3 #1 RULED 2026-07-27 (structure worksheet): the <70 band is
+# "Well Below Average". Her answer reversed itself mid-sentence — she wrote
+# "Let's go with exceptionally low" then "Let's go with Well Below Average" —
+# and Part 3 #2 confirms the same label. Rationale in her words: when every
+# score falls in this band, the harshest label repeats page after page and is
+# hard for a parent to read. "Very Low" is retired as an ability-band label.
 ABILITY_SCORE_BANDS: tuple[ScoreBand, ...] = (
     ScoreBand("Exceptionally High", ">130", ">70", ">16", "99th-100th"),
     ScoreBand("Above Average", "116-130", "61-70", "14-16", "85th-98th"),
@@ -118,6 +134,18 @@ ABILITY_SCORE_BANDS: tuple[ScoreBand, ...] = (
     ),
     ScoreBand("Low Average", "85-89", "40-42", "6-7", "16th-23rd"),
     ScoreBand("Below Average", "70-84", "30-39", "4-6", "2nd-15th"),
+    ScoreBand(
+        "Well Below Average",
+        "<70",
+        "<30",
+        "1-3",
+        "2nd or below",
+        notes=(
+            "Part 3 #1/#2 (2026-07-27). Replaces the previously recorded "
+            "'Very Low' for this band. Chosen for lower perceived negative "
+            "connotation when a whole profile sits below 70."
+        ),
+    ),
 )
 
 
@@ -129,6 +157,15 @@ class BehaviorRatingBand:
     clinical_label: str
 
 
+# Part 3 #3 RULED 2026-07-27: publisher behavior-scale labels are PRESERVED,
+# not converted to house labels. Molly: "Use very elevated." So *Very Elevated*,
+# *Clinically Elevated*, *Mildly Elevated* etc. stay as the instrument prints
+# them. No REPLACE rule is registered for them below — this is deliberate.
+#
+# NOTE (collision): the clinical T<=30 label here is "Very Low", which is the
+# same string just retired as an *ability* band label. These are different
+# scales and the behavior label is unchanged. This is why no blanket
+# "Very Low" -> "Well Below Average" REPLACE exists; see the FLAG rule below.
 BEHAVIOR_RATING_BANDS: tuple[BehaviorRatingBand, ...] = (
     BehaviorRatingBand("70+", "Very High", "70+", "Clinically Significant"),
     BehaviorRatingBand("60-69", "High", "60-69", "At-Risk"),
@@ -138,22 +175,53 @@ BEHAVIOR_RATING_BANDS: tuple[BehaviorRatingBand, ...] = (
 )
 
 
-# Confirmed house rules from Molly's returned worksheet (2026-07-27).
-# Part 4 open questions stay FLAG-only or unencoded — do not guess.
+# Confirmed house rules from Molly's returned worksheets (2026-07-27).
+#
+# Structure-worksheet Part 3 closed four of the six open terminology items:
+#   #1 lowest ability band  -> "Well Below Average" (supersedes "Very Low")
+#   #2 "Well Below Average" -> adopted as the band label itself, not a synonym
+#   #3 publisher behavior labels -> PRESERVED ("Use very elevated")
+#   #4 "weakness"           -> keep the word, qualify normative vs. relative
+#   #5 emotional disturbance-> substitution holds in eligibility too (confirmed)
+#   #6 multi-step           -> CLOSED 2026-07-28: hyphenated, confirmed
+#
+# Follow-up replies 2026-07-28 closed the remainder:
+#   - multi-step: "Hyphenated, yes."
+#   - normative-weakness threshold: standard score < 85 (she picked 85 over 79).
+#   - lowest band / "Very Low" persisting in behavior tables: "That sounds good."
+#   - emotional disturbance -> emotional disability: re-confirmed knowingly.
+#
+# All six terminology items are now closed.
 TERMINOLOGY_RULES: tuple[TerminologyRule, ...] = (
-    # --- Seed (Part 4 #1: leave Exact pair untouched until she rules) ---
+    # --- Lowest ability band (Part 3 #1/#2, ruled 2026-07-27) ---
+    # Target changed from "Very Low" to "Well Below Average".
     TerminologyRule(
         banned="Extremely Low",
-        preferred="Very Low",
+        preferred="Well Below Average",
         action=RuleAction.REPLACE,
         scope=RuleScope.ANY,
-        notes="Standard score band label preference",
+        notes="Lowest standard-score band (<70). Ruled 2026-07-27; supersedes 'Very Low'.",
     ),
     TerminologyRule(
         banned="extremely low",
-        preferred="Very Low",
+        preferred="Well Below Average",
         action=RuleAction.REPLACE,
         scope=RuleScope.ANY,
+    ),
+    # "Very Low" is FLAG, not REPLACE, because the same string is the live
+    # publisher label for the clinical T<=30 behavior-rating band (preserved
+    # per Part 3 #3). Auto-replacing would corrupt behavior-scale reporting.
+    # Reviewer decides which scale is in play.
+    TerminologyRule(
+        banned="Very Low",
+        preferred="Well Below Average",
+        action=RuleAction.FLAG,
+        scope=RuleScope.ANY,
+        notes=(
+            "Ability/processing scores (<70) now read 'Well Below Average'. "
+            "Do NOT change if this is a behavior-rating T-score label — that "
+            "band is still 'Very Low'. Same string, two scales."
+        ),
     ),
     # --- 2a. Mechanical closed forms (§7) ---
     TerminologyRule("psycho-educational", "psychoeducational", RuleAction.REPLACE),
@@ -166,11 +234,12 @@ TERMINOLOGY_RULES: tuple[TerminologyRule, ...] = (
         notes="Construct closed form; person-language uses non-speaking (FLAG).",
     ),
     # Molly reversed the proposal: prefer multi-step, not multistep (Part 4 #6).
+    # CONFIRMED 2026-07-28 — asked directly, answered "Hyphenated, yes."
     TerminologyRule(
         "multistep",
         "multi-step",
         RuleAction.REPLACE,
-        notes="Molly: 'I like the multi-step.' Confirmation pending Part 4 #6.",
+        notes="Molly: 'I like the multi-step.' Confirmed hyphenated 2026-07-28.",
     ),
     # --- 2a. Mechanical hyphenated compound modifiers (§7) ---
     TerminologyRule("social emotional", "social-emotional", RuleAction.REPLACE),
@@ -211,12 +280,27 @@ TERMINOLOGY_RULES: tuple[TerminologyRule, ...] = (
         RuleScope.NARRATIVE,
         notes="Molly: never say emotional disturbance; always emotional disability (ED).",
     ),
+    # Part 3 #5 CONFIRMED 2026-07-27, re-confirmed 2026-07-28: the substitution
+    # holds in eligibility and legal wording too — a deliberate, recorded
+    # exception to the otherwise-standing rule that statutory language is
+    # reproduced exactly. Molly does not use this term anywhere. That's the rule.
+    #
+    # Premise correction (on the record): her rationale equated this with
+    # "mentally retarded" being "against the law." Rosa's Law (2010) did
+    # replace "mental retardation" federally; "emotional disturbance" was
+    # not similarly replaced and remains the operative IDEA / CA Ed Code
+    # eligibility category. Encoded as house style (Molly is final reviewer),
+    # not as a legal requirement. She re-confirmed knowingly on 2026-07-28.
     TerminologyRule(
         "emotional disturbance",
         "emotional disability",
-        RuleAction.FLAG,
+        RuleAction.REPLACE,
         RuleScope.ELIGIBILITY,
-        notes="Part 4 #5: confirm override in statutory/eligibility contexts before REPLACE.",
+        notes=(
+            "Molly-confirmed house-style override of the statutory term "
+            "(not a legal requirement — 'emotional disturbance' remains the "
+            "IDEA / CA Ed Code category). Applies in all scopes."
+        ),
     ),
     # --- 2b. Context-sensitive person language (FLAG) ---
     TerminologyRule(
@@ -277,17 +361,33 @@ TERMINOLOGY_RULES: tuple[TerminologyRule, ...] = (
         notes="When intent is not established; preserve attributed quotations.",
     ),
     # --- 2c. Strengths-based review (all FLAG) ---
+    # Part 3 #4 ANSWERED 2026-07-27. Molly finished the sentence that had been
+    # cut off: she does not want "weakness" removed — she wants it *qualified*
+    # as either a normative weakness (low vs. same-age peers nationally) or a
+    # relative/personal weakness (low vs. the student's own ability level),
+    # with both defined in the About Test Scores section. Still FLAG, not
+    # REPLACE: the correct qualifier depends on the score pattern, which this
+    # deterministic pass cannot see.
     TerminologyRule(
         "weakness",
-        "area of need, relative difficulty",
+        "qualify as a normative weakness or a relative (personal) weakness",
         RuleAction.FLAG,
-        notes="Part 4 #4: Molly's answer incomplete — FLAG only, do not REPLACE.",
+        notes=(
+            "Normative = low vs. same-age peers nationally. Relative = low vs. "
+            "the student's own average ability. Molly wants the benchmark named "
+            "in plain words ('compared to other children the same age across the "
+            "country'). Threshold SETTLED 2026-07-28: standard score < 85 "
+            "(NORMATIVE_WEAKNESS_MAX_SS). She was offered 79 vs. 85 and chose 85."
+        ),
     ),
     TerminologyRule(
         "weaknesses",
-        "area of need, relative difficulty",
+        "qualify as normative weaknesses or relative (personal) weaknesses",
         RuleAction.FLAG,
-        notes="Part 4 #4: Molly's answer incomplete — FLAG only, do not REPLACE.",
+        notes=(
+            "See 'weakness'. Bare plural with no normative/relative qualifier is "
+            "the thing Molly flagged. Threshold: SS < 85, ruled 2026-07-28."
+        ),
     ),
     TerminologyRule(
         "deficit",
@@ -428,7 +528,20 @@ PROTECTED_TERMS: tuple[str, ...] = (
     "Other Health Impairment",
     "Speech or Language Impairment",
     "Intellectual Disability",
+    # Technical weakness-type terms (Part 3 #4) — these are the qualifiers
+    # Molly wants used, so the strengths-based "weakness" FLAG must not fire
+    # on them.
     "Normative Weakness",
+    "Normative Weaknesses",
+    "Relative Weakness",
+    "Relative Weaknesses",
+    "Personal Weakness",
+    "Personal Weaknesses",
+    # Publisher behavior-scale labels preserved per Part 3 #3.
+    "Very Elevated",
+    "Mildly Elevated",
+    "Potentially Clinically Elevated",
+    "Clinically Elevated",
 )
 
 

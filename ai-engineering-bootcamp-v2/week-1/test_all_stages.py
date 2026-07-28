@@ -3746,16 +3746,82 @@ def test_terminology_unit() -> bool:
         and any(h.action == RuleAction.REPLACE for h in ed_narr.hits),
         f"rewritten={ed_narr.rewritten!r} hits={ed_narr.hits}",
     )
+    # Part 3 #5 confirmed 2026-07-27: the substitution now holds in eligibility
+    # and statutory wording too (was FLAG-only pending her confirmation).
     ed_elig = find_terminology_violations(
         " qualifies under emotional disturbance criteria.",
         scope=RuleScope.ELIGIBILITY,
     )
     ok &= check(
-        "ED FLAG in eligibility",
-        ed_elig.rewritten == ed_elig.original
-        and any(h.action == RuleAction.FLAG for h in ed_elig.hits),
+        "ED REPLACE in eligibility",
+        "emotional disability" in ed_elig.rewritten
+        and any(h.action == RuleAction.REPLACE for h in ed_elig.hits),
         f"rewritten={ed_elig.rewritten!r} hits={ed_elig.hits}",
     )
+
+    # --- Part 3 rulings, 2026-07-27 (structure worksheet) ---
+
+    # #1/#2: lowest ability band is Well Below Average, not Very Low.
+    wba = find_terminology_violations("SS falls in the Extremely Low range.")
+    ok &= check(
+        "Extremely Low → Well Below Average",
+        wba.rewritten == "SS falls in the Well Below Average range."
+        and any(h.action == RuleAction.REPLACE for h in wba.hits),
+        f"rewritten={wba.rewritten!r} hits={wba.hits}",
+    )
+    ok &= check(
+        "Well Below Average band encoded",
+        any(b.label == "Well Below Average" for b in ABILITY_SCORE_BANDS)
+        and not any(b.label == "Very Low" for b in ABILITY_SCORE_BANDS),
+        f"bands={[b.label for b in ABILITY_SCORE_BANDS]}",
+    )
+
+    # "Very Low" is FLAG only — it is still the live behavior-rating T<=30
+    # label, so auto-replacing it would corrupt behavior-scale reporting.
+    vlow = find_terminology_violations("Her index score was Very Low.")
+    ok &= check(
+        "Very Low FLAG not REPLACE",
+        vlow.rewritten == vlow.original
+        and any(
+            h.action == RuleAction.FLAG and h.preferred == "Well Below Average"
+            for h in vlow.hits
+        ),
+        f"rewritten={vlow.rewritten!r} hits={vlow.hits}",
+    )
+    ok &= check(
+        "behavior band keeps Very Low",
+        any(b.clinical_label == "Very Low" for b in BEHAVIOR_RATING_BANDS),
+        f"bands={[b.clinical_label for b in BEHAVIOR_RATING_BANDS]}",
+    )
+
+    # #3: publisher behavior labels are preserved, never converted.
+    for pub in ("Very Elevated", "Clinically Elevated", "Mildly Elevated"):
+        pub_res = find_terminology_violations(f"The BASC-3 scale was {pub}.")
+        ok &= check(
+            f"publisher label preserved: {pub}",
+            pub_res.rewritten == pub_res.original and len(pub_res.hits) == 0,
+            f"rewritten={pub_res.rewritten!r} hits={pub_res.hits}",
+        )
+
+    # #4: bare "weakness" flags for a normative/relative qualifier, but the
+    # qualified technical terms are protected and must not fire.
+    bare_w = find_terminology_violations("a weakness in decoding")
+    ok &= check(
+        "bare weakness FLAGged",
+        bare_w.rewritten == bare_w.original
+        and any(
+            h.action == RuleAction.FLAG and "normative" in h.preferred
+            for h in bare_w.hits
+        ),
+        f"hits={bare_w.hits}",
+    )
+    for qualified in ("Normative Weakness", "Relative Weakness", "Personal Weakness"):
+        q_res = find_terminology_violations(f"This is a {qualified} in decoding.")
+        ok &= check(
+            f"protected: {qualified}",
+            q_res.rewritten == q_res.original and len(q_res.hits) == 0,
+            f"rewritten={q_res.rewritten!r} hits={q_res.hits}",
+        )
 
     # grade-level / age-appropriate position-aware hyphenation
     gl_noun = find_terminology_violations("meets grade level standards")
@@ -3777,10 +3843,11 @@ def test_terminology_unit() -> bool:
         f"hits={gl_ok.hits}",
     )
 
-    # Score band tables present (lowest <70 band intentionally omitted)
+    # Score band tables complete. The <70 band was intentionally omitted while
+    # Part 3 #1 was open; it was ruled 2026-07-27 and is now required.
     ok &= check(
-        "ability bands omit <70",
-        all("<70" not in b.standard_score for b in ABILITY_SCORE_BANDS)
+        "ability bands cover <70",
+        any("<70" in b.standard_score and b.label == "Well Below Average" for b in ABILITY_SCORE_BANDS)
         and any(b.label == "Average" for b in ABILITY_SCORE_BANDS),
         f"bands={[b.label for b in ABILITY_SCORE_BANDS]}",
     )
@@ -3790,9 +3857,13 @@ def test_terminology_unit() -> bool:
         f"n={len(BEHAVIOR_RATING_BANDS)}",
     )
     ok &= check(
-        "seed Extremely Low rule preserved",
-        any(r.banned == "Extremely Low" and r.preferred == "Very Low" for r in TERMINOLOGY_RULES),
-        "missing seed rule",
+        "Extremely Low rule retargeted to Well Below Average",
+        any(
+            r.banned == "Extremely Low" and r.preferred == "Well Below Average"
+            for r in TERMINOLOGY_RULES
+        )
+        and not any(r.preferred == "Very Low" for r in TERMINOLOGY_RULES),
+        "seed rule still points at the retired 'Very Low' label",
     )
 
     return ok
@@ -3824,8 +3895,8 @@ def test_draft_validators_unit() -> bool:
     hits = find_terminology_violations("SS falls in the Extremely Low range.")
     ok &= check(
         "terminology hit",
-        list(hits) == [("Extremely Low", "Very Low")]
-        and hits.rewritten == "SS falls in the Very Low range.",
+        list(hits) == [("Extremely Low", "Well Below Average")]
+        and hits.rewritten == "SS falls in the Well Below Average range.",
         f"hits={hits}",
     )
     flags = validate_terminology_flags("SS falls in the Extremely Low range.")
