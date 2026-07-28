@@ -1,145 +1,146 @@
-"""Minimal Streamlit UI for the Week 1 v2 `/ask` demo.
+"""Minimal Streamlit UI for Session 2 Path A — calls the live FastAPI RAG API.
+
+Does NOT reimplement RAG. Only POST /ingest and POST /ask.
 
 Run:
+  cd ai-engineering-bootcamp-v2/week-2/rag-homework
+  source .venv/bin/activate
   streamlit run demo_page.py
 """
 
+from __future__ import annotations
+
 import json
+import os
 
 import httpx
 import streamlit as st
 
-WORKDIR_CMD = "ai-engineering-bootcamp-v2/week-1v2"
-MODELS = ["gpt-4o-mini", "gpt-4o", "o3-mini"]
+DEFAULT_API = os.getenv(
+    "RAG_API_URL",
+    "https://session-2-rag-homework.onrender.com",
+)
 
 
-def build_payload(question: str, model: str, force_bad: bool) -> dict:
-    return {
-        "question": question,
-        "model": model,
-        "force_bad": force_bad,
-    }
-
-
-def render_curl(base_url: str, payload: dict) -> str:
-    body = json.dumps(payload)
-    return (
-        f'curl -s -X POST {base_url.rstrip("/")}/ask '
-        f'-H "Content-Type: application/json" '
-        f"-d '{body}'"
-    )
-
-
-def call_json(method: str, url: str, payload: dict | None = None) -> tuple[int, dict | str]:
+def call_post(url: str, payload: dict) -> tuple[int, dict | str]:
     try:
-        if method == "POST":
-            response = httpx.post(url, json=payload, timeout=120.0)
-        else:
-            response = httpx.get(url, timeout=5.0)
-
+        response = httpx.post(url, json=payload, timeout=120.0)
         try:
             return response.status_code, response.json()
         except json.JSONDecodeError:
             return response.status_code, response.text
     except httpx.ConnectError:
-        return 0, {"error": f"Cannot reach {url}. Start the API server first."}
+        return 0, {"error": f"Cannot reach {url}. Is the API URL correct / awake?"}
     except httpx.HTTPError as exc:
         return 0, {"error": str(exc)}
 
 
-def render_attempts(data: dict | str) -> None:
+def show_ask_result(data: dict | str) -> None:
     if not isinstance(data, dict):
+        st.code(str(data))
         return
 
-    attempts = data.get("attempts", [])
-    if not attempts:
+    if "detail" in data and "answer" not in data:
+        st.error(data["detail"] if isinstance(data["detail"], str) else json.dumps(data["detail"], indent=2))
         return
 
-    st.markdown("### Attempts")
-    for attempt in attempts:
-        status = "passed" if attempt.get("ok") else "failed"
-        title = f"Attempt {attempt.get('attempt')}: {attempt.get('step')} ({status})"
-        with st.expander(title, expanded=True):
-            st.write(attempt.get("message"))
-            if attempt.get("raw_output"):
-                st.markdown("**Raw model output**")
-                st.code(attempt["raw_output"], language="json")
-            if attempt.get("validation_error"):
-                st.markdown("**Validation error**")
-                st.code(attempt["validation_error"], language="text")
+    answer = data.get("answer") or {}
+    refused = bool(data.get("refused"))
+    text = answer.get("answer", "")
 
+    if refused:
+        st.warning("**Refusal** — answer not grounded in ingested docs")
+    else:
+        st.success("**Answer from retrieved docs**")
 
-def render_response_summary(data: dict | str) -> None:
-    if not isinstance(data, dict) or "error" in data:
-        return
+    st.write(text)
 
-    answer = data.get("answer")
-    if isinstance(answer, dict):
-        st.markdown("### Answer")
-        st.write(answer.get("answer", ""))
-        st.caption(
-            f"confidence: {answer.get('confidence')} | "
-            f"sources_needed: {answer.get('sources_needed')}"
-        )
+    chunk_ids = data.get("retrieved_chunk_ids") or []
+    st.markdown("**Cited / retrieved chunk IDs**")
+    if chunk_ids:
+        for cid in chunk_ids:
+            st.code(cid, language=None)
+    else:
+        st.caption("(none)")
 
-    metric_cols = st.columns(4)
-    metric_cols[0].metric("Model", str(data.get("model", "-")))
-    metric_cols[1].metric("Tokens", str(data.get("tokens_used", "-")))
-    metric_cols[2].metric("Latency", f"{data.get('latency_ms', '-')} ms")
-    metric_cols[3].metric("Cost", f"${data.get('cost_usd', '-')}")
-
-
-st.set_page_config(page_title="Week 1 v2 /ask Demo", layout="centered")
-st.title("Week 1 v2: Minimal `/ask` Demo")
-st.caption(
-    "One final demo endpoint. The separate `stages/` files show how this grows step by step."
-)
-
-base_url = st.sidebar.text_input("API base URL", "http://127.0.0.1:8000")
-st.sidebar.markdown("### Start the API")
-st.sidebar.code(
-    f"cd {WORKDIR_CMD}\n"
-    "source .venv/bin/activate\n"
-    "uvicorn main:app --host 127.0.0.1 --port 8000 --reload",
-    language="bash",
-)
-st.sidebar.markdown("### Start this page")
-st.sidebar.code(
-    f"cd {WORKDIR_CMD}\nsource .venv/bin/activate\nstreamlit run demo_page.py",
-    language="bash",
-)
-
-with st.form("ask_form"):
-    question = st.text_area(
-        "Question",
-        "What is Retrieval-Augmented Generation in one sentence?",
-        height=100,
-    )
-    model = st.selectbox("Model", MODELS, index=0)
-    force_bad = st.checkbox(
-        "Force a bad first response to demo validation + retry",
-        value=False,
-    )
-    submitted = st.form_submit_button("Ask", type="primary")
-
-payload = build_payload(question, model, force_bad)
-
-st.markdown("### Request")
-st.code(render_curl(base_url, payload), language="bash")
-
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Check API health"):
-        status, data = call_json("GET", f"{base_url.rstrip('/')}/health")
-        st.markdown(f"**HTTP {status}**" if status else "**Not connected**")
+    with st.expander("Full JSON response"):
         st.json(data)
 
-if submitted:
-    with st.spinner("Calling /ask..."):
-        status, data = call_json("POST", f"{base_url.rstrip('/')}/ask", payload)
-    st.markdown("### Response")
-    st.markdown(f"**HTTP {status}**" if status else "**Request failed**")
-    render_response_summary(data)
-    render_attempts(data)
-    st.markdown("### Raw JSON")
-    st.json(data)
+
+st.set_page_config(page_title="Session 2 RAG — ingest + ask", layout="centered")
+st.title("Session 2 RAG — ingest + ask")
+st.caption("UI only. FastAPI on Render is the source of truth.")
+
+base_url = st.sidebar.text_input(
+    "API base URL",
+    value=DEFAULT_API,
+    help="Override with env RAG_API_URL, or paste local http://127.0.0.1:8000",
+).rstrip("/")
+
+if st.sidebar.button("Check /health"):
+    try:
+        r = httpx.get(f"{base_url}/health", timeout=30.0)
+        st.sidebar.write(r.status_code)
+        st.sidebar.json(r.json())
+    except httpx.HTTPError as exc:
+        st.sidebar.error(str(exc))
+
+tab_ingest, tab_ask = st.tabs(["Ingest", "Ask"])
+
+with tab_ingest:
+    st.subheader("POST /ingest")
+    document_id = st.text_input("document_id", value="pol-101-handbook")
+    source = st.text_input("source (optional filename/label)", value="doc1_handbook.txt")
+    text = st.text_area("Document text", height=240, placeholder="Paste handbook or other plain text…")
+
+    if st.button("Ingest document", type="primary"):
+        if not document_id.strip() or not text.strip():
+            st.error("document_id and text are required")
+        else:
+            payload = {
+                "document_id": document_id.strip(),
+                "text": text,
+            }
+            if source.strip():
+                payload["source"] = source.strip()
+            with st.spinner("Calling /ingest…"):
+                status, data = call_post(f"{base_url}/ingest", payload)
+            st.caption(f"HTTP {status}")
+            if status == 200 and isinstance(data, dict):
+                st.success(
+                    f"Indexed `{data.get('document_id')}` — "
+                    f"{data.get('chunks_indexed')} chunk(s) — status={data.get('status')}"
+                )
+            st.json(data)
+
+with tab_ask:
+    st.subheader("POST /ask")
+    question = st.text_input(
+        "Question",
+        value="What are the standard working hours at Northwind Robotics?",
+    )
+    top_k = st.slider("top_k", min_value=1, max_value=10, value=5)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        ask_clicked = st.button("Ask", type="primary")
+    with col_b:
+        refuse_demo = st.button("Try refusal demo (401k)")
+
+    if refuse_demo:
+        question = "What is the company 401(k) matching percentage?"
+        ask_clicked = True
+
+    if ask_clicked:
+        if not question.strip():
+            st.error("question is required")
+        else:
+            payload = {"question": question.strip(), "top_k": top_k}
+            with st.spinner("Calling /ask (retrieve + generate)…"):
+                status, data = call_post(f"{base_url}/ask", payload)
+            st.caption(f"HTTP {status}")
+            if status == 200:
+                show_ask_result(data)
+            else:
+                st.error("Request failed")
+                st.json(data if isinstance(data, (dict, list)) else {"body": data})

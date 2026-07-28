@@ -109,18 +109,18 @@ curl -s -X POST "$LIVE_URL/ask" \
 
 ## 4. Streamlit screenshot
 
-1. API live (local or Render).
-2. Local UI:
-
 ```bash
-cd ai-engineering-bootcamp-v2/week-2/rag-homework
+cd /Users/thopk/ai-eng-bootcamp/AI-Internship/ai-engineering-bootcamp-v2/week-2/rag-homework
 source .venv/bin/activate
+# optional: export RAG_API_URL=https://session-2-rag-homework.onrender.com
 streamlit run demo_page.py
 ```
 
-3. Sidebar **API base URL** = your `LIVE_URL` (or `http://127.0.0.1:8000` for local).
-4. Ask the working-hours question; screenshot the page showing the answer JSON (include `retrieved_chunk_ids`).
-5. Optionally second screenshot for the 401(k) refusal.
+Open http://localhost:8501  
+
+**Maven screenshot:** Ask tab → question about working hours → show the green “Answer from retrieved docs” banner, the answer text, and the **Cited / retrieved chunk IDs** list (must include `pol-101-handbook::chunk-0`). Sidebar should show the live Render URL.  
+
+Optional second shot: “Try refusal demo (401k)” → yellow **Refusal** banner.
 
 ## 5. Deploy checklist (Render — homework only)
 
