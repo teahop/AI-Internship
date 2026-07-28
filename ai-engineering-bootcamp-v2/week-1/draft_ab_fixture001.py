@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Opt-in Draft A/B on fixture_001 — diagnose the traceability-enumeration hypothesis.
+Opt-in Draft A/B on fixture_001 — Part 4 verify of the span-level traceability contract.
 
 Same ledger, two system prompts:
-  A — current draft_prompt.md (per-claim statements/fact_id required)
-  B — same prompt with that contract relaxed (flowing multi-fact sentences allowed;
-      statements optional / coarse)
+  A — current draft_prompt.md (production: quote + fact_ids; labeled blocks)
+  B — relaxed control (statements optional / coarse; flowing multi-fact sentences)
 
-Prose only for human side-by-side reading. No scores, no prompt file mutation.
+Prose for human side-by-side reading. No scores, no prompt file mutation.
 
 Usage
 -----
@@ -21,8 +20,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -30,15 +31,24 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
 from conflicts import detect_disagreements_from_ledger
-from draft import DRAFT_SYSTEM_PROMPT, _draft_user_payload
+from draft import DRAFT_SYSTEM_PROMPT, _draft_user_payload, render_annotated_review
 from draft_fixture001_scale import _build_fixture_001_ledger
 from provider import DRAFT_TEMPERATURE, ModelProvider, compute_cost_usd
-from schemas import DraftRequest, DraftStatement, Ledger, LifeStage, UnverifiedCitation
+from schemas import (
+    DraftProseOutput,
+    DraftRequest,
+    DraftStatement,
+    Ledger,
+    LifeStage,
+    UnverifiedCitation,
+)
 from test_all_stages import FIXTURE_001_MANIFEST_PATH
 
 WORKDIR = Path(__file__).resolve().parent
 CACHE_PATH = WORKDIR / "fixtures" / "fixture_001" / "_ab_ledger_cache.json"
 OUT_PATH = WORKDIR / "draft_ab_fixture001_prose.md"
+
+_FACT_ID_RE = re.compile(r"\bf_[a-z0-9_]+\b", re.IGNORECASE)
 
 RELAXED_PROMPT = """# Drafting prompt — Background & History (prose only)
 
@@ -169,7 +179,9 @@ class DraftProseStrictOutput(BaseModel):
     statements: list[DraftStatement] = Field(
         description=(
             "Every substantive claim covered by some entry with real ledger "
-            "fact_ids. An entry may span clauses/sentences and carry several ids."
+            "fact_ids. An entry may cover a clause, a sentence, or several "
+            "consecutive sentences and may carry several fact_ids — "
+            "one-claim-per-sentence composition is not required."
         ),
     )
     unverified_citations: list[UnverifiedCitation] = Field(default_factory=list)
@@ -213,7 +225,7 @@ def _draft_once(
     system: str,
     schema: type[BaseModel],
     body: DraftRequest,
-) -> tuple[str, int, float]:
+) -> tuple[BaseModel, int, float]:
     print(f"  drafting variant {label} (temp={DRAFT_TEMPERATURE})…")
     t0 = time.perf_counter()
     result = provider.complete_structured(
@@ -229,34 +241,70 @@ def _draft_once(
     cost = compute_cost_usd(
         body.model or "gpt-4o-mini", result.prompt_tokens, result.completion_tokens
     )
-    n_stmt = len(getattr(output, "statements", []) or [])
+    statements = getattr(output, "statements", []) or []
+    n_stmt = len(statements)
+    id_counts = [len(getattr(s, "fact_ids", []) or []) for s in statements]
+    mean_ids = (sum(id_counts) / n_stmt) if n_stmt else 0.0
+    multi = sum(1 for n in id_counts if n > 1)
     print(
         f"  {label}: tokens={result.total_tokens} cost_usd={round(cost, 6)} "
-        f"statements={n_stmt} elapsed_s={elapsed:.1f} prose_chars={len(prose)}"
+        f"statements={n_stmt} mean_fact_ids={mean_ids:.2f} multi_id={multi} "
+        f"elapsed_s={elapsed:.1f} prose_chars={len(prose)}"
     )
-    return prose, result.total_tokens, cost
+    return output, result.total_tokens, cost
 
 
-def _write_side_by_side(prose_a: str, prose_b: str) -> None:
+def _statement_stats(statements: list[DraftStatement]) -> str:
+    n = len(statements)
+    if n == 0:
+        return "statements=0"
+    id_counts = [len(s.fact_ids) for s in statements]
+    return (
+        f"statements={n}; "
+        f"mean_fact_ids={sum(id_counts) / n:.2f}; "
+        f"multi_id_entries={sum(1 for c in id_counts if c > 1)}; "
+        f"max_fact_ids={max(id_counts)}"
+    )
+
+
+def _write_side_by_side(
+    *,
+    prose_a: str,
+    prose_b: str,
+    statements_a: list[DraftStatement],
+    annotated_a: str,
+    unanchored_a: list[str],
+) -> None:
+    inline_a = len(_FACT_ID_RE.findall(prose_a))
+    inline_b = len(_FACT_ID_RE.findall(prose_b))
     body = f"""# Draft A/B — fixture_001 Background & History
 
-**Date:** 2026-07-27
-**Hypothesis under test:** the per-sentence `statements`/`fact_id` traceability contract
-forces one-fact-per-sentence enumeration.
+**Date:** {date.today().isoformat()}
+**Part 4 verify:** span-level contract (`quote` + `fact_ids`) + labeled-block prompt in A.
 **Controls:** same ledger, same model, `DRAFT_TEMPERATURE=1.0`. Only the system prompt
 (+ schema description for statements) differs. No scores.
+**A diagnostics:** {_statement_stats(statements_a)}; inline `f_…` in clean prose={inline_a};
+unanchored quotes={len(unanchored_a)}. B inline `f_…`={inline_b}.
 
 ---
 
-## Variant A — current `draft_prompt.md`
+## Variant A — production `draft_prompt.md` (span-level)
 
-*(Every substantive claim → `statements` entry with `fact_id`.)*
+*(Coverage required; one-claim-per-sentence composition is not. Ledger ids stay out of prose.)*
 
 {prose_a.strip()}
 
 ---
 
-## Variant B — per-sentence statements/fact_id relaxed
+## Variant A — annotated review view
+
+*(fact_ids re-injected at quote spans)*
+
+{annotated_a.strip()}
+
+---
+
+## Variant B — statements/fact_id relaxed (control)
 
 *(Ledger-grounded prose still required; statements optional/coarse; multi-fact sentences encouraged.)*
 
@@ -278,7 +326,7 @@ def main() -> int:
     provider = ModelProvider()
 
     print("=" * 72)
-    print("Draft A/B — fixture_001 (traceability contract)")
+    print("Draft A/B — fixture_001 (Part 4 span-level verify)")
     print(f"manifest={FIXTURE_001_MANIFEST_PATH}")
     print("=" * 72)
 
@@ -305,14 +353,14 @@ def main() -> int:
         entailment_model="gpt-4o-mini",
     )
 
-    prose_a, _, _ = _draft_once(
+    out_a, _, _ = _draft_once(
         provider,
         label="A",
         system=DRAFT_SYSTEM_PROMPT,
         schema=DraftProseStrictOutput,
         body=body,
     )
-    prose_b, _, _ = _draft_once(
+    out_b, _, _ = _draft_once(
         provider,
         label="B",
         system=RELAXED_PROMPT,
@@ -320,7 +368,22 @@ def main() -> int:
         body=body,
     )
 
-    _write_side_by_side(prose_a, prose_b)
+    # Annotated review uses the production shape; StrictOutput is field-compatible.
+    annotated_a, unanchored_a = render_annotated_review(
+        DraftProseOutput.model_validate(out_a.model_dump())
+    )
+    print(
+        f"  A annotated: unanchored={len(unanchored_a)} "
+        f"inline_f_ids_in_clean={len(_FACT_ID_RE.findall(out_a.prose or ''))}"
+    )
+
+    _write_side_by_side(
+        prose_a=out_a.prose or "",
+        prose_b=out_b.prose or "",
+        statements_a=list(out_a.statements or []),
+        annotated_a=annotated_a,
+        unanchored_a=unanchored_a,
+    )
     print(f"DONE  elapsed_s={time.perf_counter() - t0:.1f}")
     return 0
 
