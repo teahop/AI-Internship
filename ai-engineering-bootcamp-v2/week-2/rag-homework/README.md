@@ -34,10 +34,21 @@ pip install -r requirements.txt
 test -f .env || cp .env.example .env
 ```
 
-Open `.env` and add your key:
+Open `.env` and add keys (see `.env.example`):
 
 ```bash
 OPENAI_API_KEY=sk-...
+PINECONE_API_KEY=...
+PINECONE_INDEX_NAME=bootcamp-northwind
+```
+
+Create the Pinecone index with **dimension 1536** and **cosine** metric
+(`text-embedding-3-small`). Same embedding model is used at ingest and query.
+
+Check Pinecone without running RAG yet:
+
+```bash
+curl -s http://127.0.0.1:8000/debug/pinecone | python3 -m json.tool
 ```
 
 ## Terminal 1: Start the API
@@ -153,3 +164,27 @@ week-1v2/
 - `OPENAI_API_KEY` error: make sure `.env` exists and contains a real key.
 - `Address already in use`: another server is already using port `8000`; stop it or use a different port.
 - Streamlit opens but requests fail: confirm the sidebar API base URL is `http://127.0.0.1:8000`.
+
+## Golden-set eval (Path A)
+
+Corpus: [Northwind Robotics Employee Handbook](https://tailabs.ai/courses/ai-eng-syllabus/sample_docs/doc1_handbook.txt) (`document_id`: `pol-101-handbook`).  
+Fill **retrieval hit / faithfulness / correctness** with `Y` or `N` after running against your live API.  
+**Retrieval hit** = a relevant handbook chunk appears in top-5. **Faithfulness** = answer only uses retrieved text. **Correctness** = matches expected (or correctly refuses).
+
+| #   | question                                                                   | expected answer (short)                      | retrieval hit? | faithfulness? | correctness? |
+| --- | -------------------------------------------------------------------------- | -------------------------------------------- | -------------- | ------------- | ------------ |
+| 1   | What are the standard working hours at Northwind Robotics?                 | 09:00–17:30, Monday–Friday                   | Y              | Y             | Y            |
+| 2   | How many days per week may employees work remotely?                        | Up to three days per week                    | Y              | Y             | Y            |
+| 3   | What are Slack core hours for remote employees?                            | 10:00–15:00                                  | Y              | Y             | Y            |
+| 4   | How much annual leave do employees get?                                    | 28 days plus public holidays                 | Y              | Y             | Y            |
+| 5   | Who must approve a fully remote arrangement, and how often is it reviewed? | Director approval; reviewed every six months | Y              | Y             | Y            |
+| 6   | What is the company’s 401(k) matching percentage?                          | **Refusal** — not in the handbook            | Y              | Y             | Y            |
+
+### How to run each row
+1. `GET /debug/retrieve?q=...&top_k=5` → mark **retrieval hit**
+2. `POST /ask` with the same question → mark **faithfulness** and **correctness**
+3. For #6, expect `refused: true` (or clear “cannot answer from documents”) and no invented benefits policy
+
+### Pass bar (suggested)
+- Rows 1–5: all three columns `Y`
+- Row 6: retrieval may be weak/irrelevant; **faithfulness** + **correctness** = `Y` only if the model **refuses** (does not invent a 401k answer)
