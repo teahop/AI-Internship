@@ -3973,7 +3973,13 @@ def test_draft_validators_unit() -> bool:
     )
     bad_out = DraftProseOutput(
         prose="A.R. is in 2nd grade.",
-        statements=[DraftStatement(statement="A.R. is in 2nd grade.", fact_id="f_001")],
+        statements=[
+            DraftStatement(
+                quote="A.R. is in 2nd grade.",
+                statement="A.R. is in 2nd grade.",
+                fact_ids=["f_001"],
+            )
+        ],
         unverified_citations=[],
         coverage=["school-age"],
     )
@@ -3989,8 +3995,9 @@ def test_draft_validators_unit() -> bool:
         prose="As of 2024-09-01, the cumulative file stated A.R. was in 2nd grade.",
         statements=[
             DraftStatement(
+                quote="As of 2024-09-01, the cumulative file stated A.R. was in 2nd grade.",
                 statement="As of 2024-09-01, the cumulative file stated A.R. was in 2nd grade.",
-                fact_id="f_001",
+                fact_ids=["f_001"],
             )
         ],
         unverified_citations=[],
@@ -4003,7 +4010,13 @@ def test_draft_validators_unit() -> bool:
     latest_ok = validate_temporal_framing(
         DraftProseOutput(
             prose="A.R. is in 4th grade.",
-            statements=[DraftStatement(statement="A.R. is in 4th grade.", fact_id="f_002")],
+            statements=[
+                DraftStatement(
+                    quote="A.R. is in 4th grade.",
+                    statement="A.R. is in 4th grade.",
+                    fact_ids=["f_002"],
+                )
+            ],
             unverified_citations=[],
             coverage=["current"],
         ),
@@ -4191,8 +4204,9 @@ def test_draft_age_cite_retry_unit() -> bool:
         ),
         statements=[
             DraftStatement(
+                quote="Records list the legal name Emma Rose Callahan.",
                 statement="Records list the legal name Emma Rose Callahan.",
-                fact_id=name_fact_id,
+                fact_ids=[name_fact_id],
             )
         ],
         coverage=["current"],
@@ -4204,12 +4218,14 @@ def test_draft_age_cite_retry_unit() -> bool:
         ),
         statements=[
             DraftStatement(
+                quote=f"{child.name} is a {expected}-year-old student.",
                 statement=f"{child.name} is a {expected}-year-old student.",
-                fact_id=COMPUTED_AGE_FACT_ID,
+                fact_ids=[COMPUTED_AGE_FACT_ID],
             ),
             DraftStatement(
+                quote="Records list the legal name Emma Rose Callahan.",
                 statement="Records list the legal name Emma Rose Callahan.",
-                fact_id=name_fact_id,
+                fact_ids=[name_fact_id],
             ),
         ],
         coverage=["current"],

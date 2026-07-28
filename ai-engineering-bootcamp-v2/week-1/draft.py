@@ -185,17 +185,19 @@ def _output_to_report_section(
     by_id = {f.id: f for f in ledger.facts}
     facts: list[SourcedFact] = []
     for stmt in output.statements:
-        fact = by_id[stmt.fact_id]
-        facts.append(
-            SourcedFact(
-                statement=stmt.statement,
-                fact_id=fact.id,
-                source_id=fact.source_id,
-                source_date=fact.source_date,
-                life_stage=fact.life_stage,
-                reporter=fact.reporter,
+        # Mechanical multi-id expand: one SourcedFact per cited ledger id.
+        for fact_id in stmt.fact_ids:
+            fact = by_id[fact_id]
+            facts.append(
+                SourcedFact(
+                    statement=stmt.statement,
+                    fact_id=fact.id,
+                    source_id=fact.source_id,
+                    source_date=fact.source_date,
+                    life_stage=fact.life_stage,
+                    reporter=fact.reporter,
+                )
             )
-        )
     return ReportSection(
         section=section,
         prose=output.prose,
@@ -275,11 +277,17 @@ def draft_section(
 
     if failed_citations:
         by_id = {f.id: f for f in body.ledger.facts}
-        output = output.model_copy(
-            update={
-                "statements": [s for s in output.statements if s.fact_id in by_id],
-            }
-        )
+
+        def _known_only(stmt):
+            known = [fid for fid in stmt.fact_ids if fid in by_id]
+            if not known:
+                return None
+            if known == list(stmt.fact_ids):
+                return stmt
+            return stmt.model_copy(update={"fact_ids": known})
+
+        kept = [s for s in (_known_only(s) for s in output.statements) if s is not None]
+        output = output.model_copy(update={"statements": kept})
         if not output.statements and output.prose.strip():
             raise ValueError(
                 "Draft fact_id trace failed: all statements cited unknown fact_ids; "

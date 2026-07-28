@@ -47,7 +47,7 @@ def validate_fact_id_trace(
     ledger: Ledger,
 ) -> tuple[list[str], list[FailedCitationAttempt]]:
     """
-    Every statement.fact_id must exist on the ledger.
+    Every id in statement.fact_ids must exist on the ledger.
 
     Unknown ids become FailedCitationAttempt (secondary gap signal) and errors.
     """
@@ -58,17 +58,18 @@ def validate_fact_id_trace(
     if not output.statements and output.prose.strip():
         errors.append("prose is non-empty but statements list is empty")
     for stmt in output.statements:
-        if stmt.fact_id not in by_id:
-            errors.append(
-                f"unknown fact_id={stmt.fact_id!r} for statement={stmt.statement[:80]!r}"
-            )
-            failed.append(
-                FailedCitationAttempt(
-                    fact_id=stmt.fact_id,
-                    statement=stmt.statement,
-                    predicate_hint=_predicate_hint(stmt.statement),
+        for fact_id in stmt.fact_ids:
+            if fact_id not in by_id:
+                errors.append(
+                    f"unknown fact_id={fact_id!r} for statement={stmt.statement[:80]!r}"
                 )
-            )
+                failed.append(
+                    FailedCitationAttempt(
+                        fact_id=fact_id,
+                        statement=stmt.statement,
+                        predicate_hint=_predicate_hint(stmt.statement),
+                    )
+                )
     return errors, failed
 
 
@@ -162,13 +163,17 @@ def validate_temporal_framing(
     latest_ids = latest_as_of_fact_ids(ledger.facts)
     items: list[ReviewItem] = []
     for stmt in output.statements:
-        fact = by_id.get(stmt.fact_id)
-        if fact is None or fact.temporality != "as_of":
-            continue
-        if fact.id in latest_ids:
-            continue
         window = stmt.statement
-        if _PRESENT_TENSE.search(window) and not _HISTORICAL_FRAME.search(window):
+        if not (
+            _PRESENT_TENSE.search(window) and not _HISTORICAL_FRAME.search(window)
+        ):
+            continue
+        for fact_id in stmt.fact_ids:
+            fact = by_id.get(fact_id)
+            if fact is None or fact.temporality != "as_of":
+                continue
+            if fact.id in latest_ids:
+                continue
             items.append(
                 ReviewItem(
                     kind="temporal_framing",
@@ -258,43 +263,44 @@ def validate_entailment(
     # Deduplicate by (fact_id, statement) to avoid repeat calls.
     seen: set[tuple[str, str]] = set()
     for stmt in output.statements:
-        key = (stmt.fact_id, stmt.statement.strip())
-        if key in seen:
-            continue
-        seen.add(key)
-        fact = by_id.get(stmt.fact_id)
-        if fact is None:
-            continue
-        if is_derived_fact(fact):
-            continue
-        source = by_source.get(fact.source_id)
-        if source is None:
-            items.append(
-                ReviewItem(
-                    kind="entailment_failure",
-                    summary=f"No source for fact {fact.id}",
-                    fact_id=fact.id,
+        for fact_id in stmt.fact_ids:
+            key = (fact_id, stmt.statement.strip())
+            if key in seen:
+                continue
+            seen.add(key)
+            fact = by_id.get(fact_id)
+            if fact is None:
+                continue
+            if is_derived_fact(fact):
+                continue
+            source = by_source.get(fact.source_id)
+            if source is None:
+                items.append(
+                    ReviewItem(
+                        kind="entailment_failure",
+                        summary=f"No source for fact {fact.id}",
+                        fact_id=fact.id,
+                    )
                 )
+                continue
+            supported, rationale, t, p, c = check_entailment_one(
+                provider, model=model, source=source, statement=stmt.statement
             )
-            continue
-        supported, rationale, t, p, c = check_entailment_one(
-            provider, model=model, source=source, statement=stmt.statement
-        )
-        total += t
-        prompt_tok += p
-        completion_tok += c
-        if not supported:
-            items.append(
-                ReviewItem(
-                    kind="entailment_failure",
-                    summary=(
-                        f"Source {source.id} does not support statement for {fact.id}: "
-                        f"{rationale[:160]}"
-                    ),
-                    fact_id=fact.id,
-                    requires_decision=True,
+            total += t
+            prompt_tok += p
+            completion_tok += c
+            if not supported:
+                items.append(
+                    ReviewItem(
+                        kind="entailment_failure",
+                        summary=(
+                            f"Source {source.id} does not support statement for {fact.id}: "
+                            f"{rationale[:160]}"
+                        ),
+                        fact_id=fact.id,
+                        requires_decision=True,
+                    )
                 )
-            )
     return items, total, prompt_tok, completion_tok
 
 

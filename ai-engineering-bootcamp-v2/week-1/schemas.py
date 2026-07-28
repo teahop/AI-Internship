@@ -575,18 +575,40 @@ class ReviewQueue(BaseModel):
 
 
 class DraftStatement(BaseModel):
-    """One prose claim traced to a ledger fact."""
+    """One prose span traced to the ledger facts that support it.
 
-    statement: str
-    fact_id: str
+    Accepted trade-off: fluidity and fine-grained traceability trade off
+    directly. As prose fuses facts, verification granularity drops from
+    "claim" to "span." That is intended — do not push the model back toward
+    one-claim-per-sentence composition to recover finer ids.
+    """
+
+    quote: str = Field(
+        description="Verbatim span from `prose` this claim covers",
+    )
+    statement: str = Field(description="The claim being made")
+    fact_ids: list[str] = Field(
+        min_length=1,
+        description="Ledger fact ids supporting this claim (one or many)",
+    )
 
 
 class DraftProseOutput(BaseModel):
-    """Model output for /draft — prose only; facts/conflicts are settled input."""
+    """Model output for /draft — prose only; facts/conflicts are settled input.
+
+    Labeled history blocks are bold run-ins inside `prose` (Molly paste-ready).
+    No first-class `blocks` field — structure is prompt-enforced until section
+    assembly needs a typed shape.
+    """
 
     prose: str
     statements: list[DraftStatement] = Field(
-        description="Every substantive claim with its ledger fact_id",
+        description=(
+            "Every substantive claim covered by some entry with real ledger "
+            "fact_ids. An entry may cover a clause, a sentence, or several "
+            "consecutive sentences and may carry several fact_ids — "
+            "one-claim-per-sentence composition is not required."
+        ),
     )
     unverified_citations: list[UnverifiedCitation] = Field(
         default_factory=list,
