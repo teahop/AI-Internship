@@ -109,6 +109,15 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "Never infer from age. Aggressively as_of — old grades do not imply current placement.",
     ),
     _p(
+        "school_enrollment",
+        "record",
+        "School the student is enrolled in, as stated.",
+        "as_of",
+        "Subject is child, never school — the claim is this child attends X. "
+        "school stays a canonical subject for claims about the school itself. "
+        "as_of timeline serves both current school and school history (same pattern as grade).",
+    ),
+    _p(
         "retention_year",
         "record",
         "Grade level or school year in which retention occurred.",
@@ -272,6 +281,17 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "Replaces phonics_progress; Molly also calls this phonological processing (worksheet #34).",
     ),
     _p(
+        "reading_level",
+        "record",
+        "Instrument-scored reading level (DRA, F&P, Lexile, etc.) as stated.",
+        "as_of",
+        "Put the instrument in qualifier (DRA, F&P, Lexile); value carries the level. "
+        "Do not mint dra_level. Qualifier shape is TJ/Claude's (allergy_status pattern) — "
+        "Molly ruled only that DRA is its own thing, not how to encode it. "
+        "Educational History only (table and its summary); not basic_reading / reading_fluency.",
+        takes_qualifier=True,
+    ),
+    _p(
         "reading_fluency",
         "record",
         "Reading fluency level relative to peers or grade expectations.",
@@ -393,6 +413,19 @@ PREDICATE_VOCABULARY: tuple[PredicateSpec, ...] = (
         "History of trauma or adverse experiences as described by a reporter.",
         "durable",
         "Reporter-dependent; treat like developmental_concern_onset (Molly, worksheet Q2).",
+    ),
+    _p(
+        "family_history",
+        "perspectival",
+        "Family history of a condition as described by a reporter.",
+        "durable",
+        "Put the condition in qualifier (dyslexia, ADHD); value carries how it was described. "
+        "Subject stays child — the claim is this child has a family history of X; "
+        "routing to mother/father fails on the common unattributed form ('in family'). "
+        "Not a claim about any relative's own diagnosis. "
+        "perspectival, not record — a mother reporting it and a school form silent on it "
+        "is not two sources contradicting each other. Not trauma_history.",
+        takes_qualifier=True,
     ),
     _p(
         "preschool_experience_impression",
