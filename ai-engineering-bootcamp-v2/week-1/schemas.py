@@ -28,6 +28,7 @@ SectionName = Literal["history"]
 Temporality = Literal["durable", "as_of"]
 FactConfidence = Literal["stated", "hedged"]
 FactAssertion = Literal["asserted", "denied"]
+FactValence = Literal["strength", "concern", "neutral"]
 FreshnessState = Literal["absent", "stale", "current"]
 
 
@@ -60,11 +61,11 @@ class Fact(BaseModel):
     """
     One normalized claim in the case ledger.
 
-    Conflict detection groups on (subject, predicate, qualifier). durable facts
-    compare directly; as_of facts form a timeline by as_of_date (same-date
-    disagreement only). Prefer predicates from predicates.py; unknown
-    predicates must be flagged for review (needs_predicate_review), not silently
-    accepted.
+    Conflict detection groups on (subject, predicate, qualifier) only — never on
+    valence or source_section. durable facts compare directly; as_of facts form a
+    timeline by as_of_date (same-date disagreement only). Prefer predicates from
+    predicates.py; unknown predicates must be flagged for review
+    (needs_predicate_review), not silently accepted.
 
     subject is a canonical entity id (child, mother, father, school, or a source
     id for provenance) — never a display name.
@@ -73,6 +74,13 @@ class Fact(BaseModel):
     produces no row — there is no not_stated value.
 
     grade is independent of age and life_stage — never infer one from another.
+
+    valence and source_section are not redundant and must not be collapsed.
+    source_section is observed (the literal document heading); valence is the
+    queryable dimension — derived from source_section where the heading carries
+    valence, and Molly's call where no heading exists. source_section is None
+    therefore signals that a cell needed her judgment rather than the document's
+    (targeted review queue), not that valence is unknown.
     """
 
     id: str = Field(description='Stable id namespaced by source, e.g. "f_nurse-health-2024_001"')
@@ -159,6 +167,23 @@ class Fact(BaseModel):
             "True when a derived fact's inputs are themselves disputed "
             "(e.g. age_years when dob has a record conflict). Still computed; "
             "never silently treated as settled."
+        ),
+    )
+    valence: FactValence = Field(
+        default="neutral",
+        description=(
+            "Queryable framing: strength | concern | neutral. "
+            "Table B Strengths = strength; Concerns = concern. "
+            "Not part of the conflict grouping key."
+        ),
+    )
+    source_section: str | None = Field(
+        default=None,
+        description=(
+            "Literal document heading the claim sat under (e.g. Strengths, "
+            "Concerns, Outcome/Interventions) — verbatim, never normalized, "
+            "never judged. None when the document has no heading. "
+            "Observed provenance; not part of the conflict grouping key."
         ),
     )
 
@@ -275,6 +300,21 @@ class ExtractedFactDraft(BaseModel):
         description=(
             "YYYY-MM-DD when the source names an explicit temporal anchor; "
             "null → server stamps source_date"
+        ),
+    )
+    valence: FactValence = Field(
+        default="neutral",
+        description=(
+            "strength | concern | neutral. When the claim sat under a heading "
+            "that carries valence, set accordingly; otherwise neutral unless "
+            "the source clearly frames it."
+        ),
+    )
+    source_section: str | None = Field(
+        default=None,
+        description=(
+            "Literal document heading the claim sat under, copied verbatim. "
+            "null when the document has no heading — do not invent one."
         ),
     )
 

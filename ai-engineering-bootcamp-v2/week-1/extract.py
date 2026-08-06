@@ -686,6 +686,11 @@ def draft_to_fact(
     qualifier = normalize_qualifier(draft.qualifier)
     as_of = _finalize_as_of_date(draft, source)
     subject = _finalize_subject(draft, source, predicate)
+    source_section = (
+        draft.source_section.strip()
+        if draft.source_section and draft.source_section.strip()
+        else None
+    )
 
     # Structural lock: non-provenance facts must never key on a source id.
     if not is_provenance_predicate(predicate) and subject not in CANONICAL_SUBJECTS:
@@ -712,6 +717,8 @@ def draft_to_fact(
         confidence=draft.confidence,
         derivation=None,
         inherits_dispute=False,
+        valence=draft.valence,
+        source_section=source_section,
     )
 
 

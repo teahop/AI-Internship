@@ -22,8 +22,17 @@ Return `SourceExtraction` with a `facts` list. Each fact:
 | `grade` | Grade at the time of the claim **only if the source states it**; else `null`. Never infer grade from age or age from grade. |
 | `as_of_date` | `YYYY-MM-DD` — the date the claim is **about**. See temporal anchoring below. Omit or `null` when the claim has no explicit anchor (server defaults to `source.date`). |
 | `confidence` | `stated` if asserted outright; `hedged` if qualified (`about`, `around`, `generally`). |
+| `valence` | `strength` \| `concern` \| `neutral`. When the claim sat under a heading that carries valence (e.g. Strengths, Concerns), set accordingly; otherwise `neutral` unless the source clearly frames it. |
+| `source_section` | Literal document heading the claim sat under, **copied verbatim**. `null` when the document has no heading. |
 
 Temporality (`durable` / `as_of`) is **not** an extraction field — the server stamps it from the predicate vocabulary.
+
+## Valence and source section
+
+`source_section` and `valence` are **not** the same field.
+
+- **`source_section`** is observed: copy the heading the claim sat under exactly as printed (*Strengths*, *Concerns*, *Outcome/Interventions*, *Observed academic skill strengths*, …). **Copy the heading — do not invent or infer one.** If there is no heading, leave `source_section` null. Inventing a plausible heading destroys the empty-means-judgment signal.
+- **`valence`** is the queryable framing (`strength` / `concern` / `neutral`). Derive it from `source_section` when the heading carries valence; when `source_section` is null, set `valence` only if the source text itself clearly frames the claim, otherwise `neutral`.
 
 ## Temporal anchoring — `as_of_date`
 
