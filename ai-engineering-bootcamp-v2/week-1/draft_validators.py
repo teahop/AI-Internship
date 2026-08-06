@@ -12,6 +12,7 @@ from schemas import (
     DraftBlockKind,
     DraftProseOutput,
     EntailmentJudgment,
+    Fact,
     FailedCitationAttempt,
     Ledger,
     ReviewItem,
@@ -120,6 +121,18 @@ def validate_draft_blocks(output: DraftProseOutput, ledger: Ledger) -> list[str]
         if block.kind == DraftBlockKind.PROSE and block.prose is None:
             errors.append(f"prose block {block.label!r} missing prose body")
     return errors
+
+
+def facts_needing_valence_judgment(facts: list[Fact]) -> list[Fact]:
+    """
+    Facts whose valence was not grounded in a document heading.
+
+    `source_section is None` means the cell needed Molly's judgment rather than
+    the document's (layout doc §5). Identifiable seam for a future review-queue
+    rule — do not invent ReviewItems here until that rule is specced.
+    """
+
+    return [f for f in facts if f.source_section is None]
 
 
 def days_between(earlier: str, later: str) -> int:

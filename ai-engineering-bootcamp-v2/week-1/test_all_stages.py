@@ -1351,6 +1351,429 @@ def test_predicate_vocabulary_unit() -> bool:
     return ok
 
 
+def test_educational_history_ledger_additions_unit() -> bool:
+    """Educational History ledger encode: predicates, valence/source_section, DraftBlock."""
+
+    print("\n=== Educational History ledger additions unit ===")
+    from conflicts import detect_disagreements
+    from draft import finalize_draft_output
+    from draft_validators import (
+        facts_needing_valence_judgment,
+        filter_blocks_by_trigger,
+        render_prose_from_blocks,
+    )
+    from predicates import temporality_for_predicate
+    from schemas import (
+        Child,
+        DraftBlock,
+        DraftBlockKind,
+        DraftCell,
+        DraftProseOutput,
+        DraftStatement,
+        DraftTable,
+        Ledger,
+        Source,
+    )
+
+    ok = True
+
+    def _fact(
+        *,
+        fact_id: str,
+        predicate: str,
+        value: str,
+        temporality: str,
+        source_id: str = "s1",
+        source_date: str = "2026-01-01",
+        as_of_date: str | None = None,
+        qualifier: str | None = None,
+        reporter: str | None = None,
+        valence: str = "neutral",
+        source_section: str | None = None,
+    ) -> Fact:
+        return Fact(
+            id=fact_id,
+            subject="child",
+            predicate=predicate,
+            value=value,
+            value_text=value,
+            qualifier=qualifier,
+            assertion="asserted",
+            source_id=source_id,
+            source_date=source_date,
+            as_of_date=as_of_date or source_date,
+            reporter=reporter,
+            life_stage="school-age",
+            grade=None,
+            temporality=temporality,  # type: ignore[arg-type]
+            confidence="stated",
+            valence=valence,  # type: ignore[arg-type]
+            source_section=source_section,
+        )
+
+    # --- Vocabulary ---
+    for name, pred_class, temporality, takes_qual in (
+        ("school_enrollment", "record", "as_of", False),
+        ("reading_level", "record", "as_of", True),
+        ("family_history", "perspectival", "durable", True),
+    ):
+        ok &= check(
+            f"registered:{name}",
+            name in PREDICATES,
+            f"{name} in vocabulary={name in PREDICATES}",
+        )
+        if name not in PREDICATES:
+            continue
+        spec = PREDICATES[name]
+        ok &= check(
+            f"class:{name}",
+            spec.predicate_class == pred_class,
+            f"{name} class={spec.predicate_class}",
+        )
+        ok &= check(
+            f"temporality:{name}",
+            temporality_for_predicate(name) == temporality
+            and spec.default_temporality == temporality,
+            f"{name} temporality={temporality_for_predicate(name)}",
+        )
+        ok &= check(
+            f"qualifier:{name}",
+            spec.takes_qualifier is takes_qual,
+            f"{name}.takes_qualifier={spec.takes_qualifier}",
+        )
+
+    dra = _fact(
+        fact_id="f_dra",
+        predicate="reading_level",
+        value="4",
+        temporality="as_of",
+        qualifier="DRA",
+    )
+    fp = _fact(
+        fact_id="f_fp",
+        predicate="reading_level",
+        value="H",
+        temporality="as_of",
+        qualifier="F&P",
+        source_id="s2",
+    )
+    ok &= check(
+        "reading_level qualifiers group separately",
+        fact_grouping_key(dra.subject, dra.predicate, dra.qualifier)
+        != fact_grouping_key(fp.subject, fp.predicate, fp.qualifier),
+        "DRA and F&P must not share a conflict bucket",
+    )
+    c_rl, v_rl, _, _, _ = detect_disagreements([dra, fp])
+    ok &= check(
+        "reading_level no cross-instrument conflict",
+        len(c_rl) == 0 and len(v_rl) == 0,
+        f"conflicts={c_rl} variance={v_rl}",
+    )
+
+    enroll_a = _fact(
+        fact_id="f_sch_a",
+        predicate="school_enrollment",
+        value="Sierra Montessori",
+        temporality="as_of",
+        source_date="2016-09-01",
+        as_of_date="2016-09-01",
+    )
+    enroll_b = _fact(
+        fact_id="f_sch_b",
+        predicate="school_enrollment",
+        value="NCSA",
+        temporality="as_of",
+        source_id="s2",
+        source_date="2017-09-01",
+        as_of_date="2017-09-01",
+    )
+    c_enroll, _, timelines_enroll, _, _ = detect_disagreements([enroll_a, enroll_b])
+    enroll_tl = next(
+        (t for t in timelines_enroll if t.predicate == "school_enrollment"), None
+    )
+    ok &= check(
+        "school_enrollment timeline no conflict",
+        len(c_enroll) == 0,
+        f"conflicts={[c.topic for c in c_enroll]}",
+    )
+    ok &= check(
+        "school_enrollment one timeline",
+        enroll_tl is not None and len(enroll_tl.entries) == 2,
+        f"timeline={enroll_tl}",
+    )
+
+    fam_parent = _fact(
+        fact_id="f_fam_p",
+        predicate="family_history",
+        value="dyslexia in family",
+        temporality="durable",
+        qualifier="dyslexia",
+        reporter="mother",
+        source_id="parent",
+    )
+    fam_school = _fact(
+        fact_id="f_fam_s",
+        predicate="family_history",
+        value="no family history noted",
+        temporality="durable",
+        qualifier="dyslexia",
+        reporter="school",
+        source_id="school",
+        source_date="2026-02-01",
+    )
+    c_fam, v_fam, _, _, _ = detect_disagreements([fam_parent, fam_school])
+    ok &= check(
+        "family_history perspectival not conflict",
+        len(c_fam) == 0,
+        f"conflicts={[c.topic for c in c_fam]}",
+    )
+    ok &= check(
+        "family_history variance",
+        len(v_fam) == 1 and v_fam[0].predicate == "family_history",
+        f"variance={[v.topic for v in v_fam]}",
+    )
+
+    # --- Dimensions (grouping-key regression guards) ---
+    bare = _fact(
+        fact_id="f_bare",
+        predicate="behavioral_concern",
+        value="sweet and outgoing",
+        temporality="as_of",
+    )
+    ok &= check("valence default", bare.valence == "neutral", f"valence={bare.valence}")
+    ok &= check(
+        "source_section default",
+        bare.source_section is None,
+        f"source_section={bare.source_section!r}",
+    )
+
+    strength = bare.model_copy(
+        update={"id": "f_str", "valence": "strength", "source_section": "Strengths"}
+    )
+    concern = bare.model_copy(
+        update={
+            "id": "f_con",
+            "value": "anxious",
+            "value_text": "anxious",
+            "valence": "concern",
+            "source_section": "Concerns",
+            "source_id": "s2",
+        }
+    )
+    # Same predicate/value keys but different valence only:
+    same_claim_a = bare.model_copy(update={"id": "f_v1", "valence": "strength"})
+    same_claim_b = bare.model_copy(
+        update={
+            "id": "f_v2",
+            "value": "anxious",
+            "value_text": "anxious",
+            "valence": "concern",
+            "source_id": "s2",
+        }
+    )
+    ok &= check(
+        "valence excluded from grouping key",
+        fact_grouping_key(
+            same_claim_a.subject, same_claim_a.predicate, same_claim_a.qualifier
+        )
+        == fact_grouping_key(
+            same_claim_b.subject, same_claim_b.predicate, same_claim_b.qualifier
+        ),
+        "identical facts differing only in valence must share a bucket",
+    )
+    c_val, v_val, _, _, _ = detect_disagreements([same_claim_a, same_claim_b])
+    ok &= check(
+        "valence difference still one bucket",
+        len(c_val) + len(v_val) == 1,
+        f"conflicts={len(c_val)} variance={len(v_val)} (want exactly one disagreement)",
+    )
+
+    sec_a = bare.model_copy(update={"id": "f_sec_a", "source_section": "Strengths"})
+    sec_b = bare.model_copy(
+        update={
+            "id": "f_sec_b",
+            "value": "anxious",
+            "value_text": "anxious",
+            "source_section": "Areas of Concern",
+            "source_id": "s2",
+        }
+    )
+    ok &= check(
+        "source_section excluded from grouping key",
+        fact_grouping_key(sec_a.subject, sec_a.predicate, sec_a.qualifier)
+        == fact_grouping_key(sec_b.subject, sec_b.predicate, sec_b.qualifier),
+        "identical facts differing only in source_section must share a bucket",
+    )
+    c_sec, v_sec, _, _, _ = detect_disagreements([sec_a, sec_b])
+    ok &= check(
+        "source_section difference still one bucket",
+        len(c_sec) + len(v_sec) == 1,
+        f"conflicts={len(c_sec)} variance={len(v_sec)} (want exactly one disagreement)",
+    )
+
+    needs_review = facts_needing_valence_judgment([strength, concern, bare])
+    ok &= check(
+        "source_section None identifiable",
+        [f.id for f in needs_review] == ["f_bare"],
+        f"needs_review={[f.id for f in needs_review]}",
+    )
+
+    # --- Blocks ---
+    blank = DraftCell(text="", fact_ids=[])
+    ok &= check(
+        "blank cell empty text",
+        blank.text == "" and blank.text != "N/A" and blank.text.strip() == "",
+        f"text={blank.text!r}",
+    )
+    ok &= check("blank cell no fact_ids", blank.fact_ids == [], f"ids={blank.fact_ids}")
+
+    table = DraftTable(
+        title="School History",
+        columns=["Year", "ELA", "MATH"],
+        rows=[
+            [
+                DraftCell(text="2017-18", fact_ids=["f_sch_b"]),
+                DraftCell(text="DRA 4", fact_ids=["f_dra"]),
+                blank,
+            ]
+        ],
+    )
+    ok &= check(
+        "row width equals columns",
+        all(len(row) == len(table.columns) for row in table.rows),
+        f"columns={len(table.columns)} row_lens={[len(r) for r in table.rows]}",
+    )
+
+    child = Child(name="Alex Rivera", dob="2017-03-15", evaluation_date="2026-07-16")
+    source = Source(
+        id="s1", type="school", date="2026-01-01", label="Cumulative", content="x"
+    )
+    empty_ledger = Ledger(
+        child=child,
+        ledger_version="1",
+        built_at="2026-07-16T00:00:00Z",
+        sources=[source],
+        facts=[],
+    )
+    school_block = DraftBlock(
+        kind=DraftBlockKind.PROSE,
+        label="School experience",
+        trigger=None,
+        prose="Attended NCSA in first grade.",
+        statements=[
+            DraftStatement(
+                quote="Attended NCSA in first grade.",
+                statement="Attended NCSA in first grade.",
+                fact_ids=["f_sch_b"],
+            )
+        ],
+    )
+    intervention_block = DraftBlock(
+        kind=DraftBlockKind.PROSE,
+        label="Intervention",
+        trigger="intervention_tier",
+        prose="Received Lexia reading intervention.",
+        statements=[
+            DraftStatement(
+                quote="Received Lexia reading intervention.",
+                statement="Received Lexia reading intervention.",
+                fact_ids=["f_int"],
+            )
+        ],
+    )
+    iep_block = DraftBlock(
+        kind=DraftBlockKind.PROSE,
+        label="IEP",
+        trigger="iep_status",
+        prose="An IEP is in place.",
+        statements=[
+            DraftStatement(
+                quote="An IEP is in place.",
+                statement="An IEP is in place.",
+                fact_ids=["f_iep"],
+            )
+        ],
+    )
+    blocks_all = [school_block, intervention_block, iep_block]
+
+    kept_empty = filter_blocks_by_trigger(blocks_all, empty_ledger)
+    ok &= check(
+        "trigger None always present",
+        len(kept_empty) == 1 and kept_empty[0].trigger is None,
+        f"kept={[b.label for b in kept_empty]}",
+    )
+    ok &= check(
+        "intervention absent without facts",
+        all(b.trigger != "intervention_tier" for b in kept_empty),
+        f"kept={[b.label for b in kept_empty]}",
+    )
+
+    intervention_fact = _fact(
+        fact_id="f_int",
+        predicate="intervention_tier",
+        value="Lexia",
+        temporality="as_of",
+        qualifier="reading",
+    )
+    ledger_with_intervention = empty_ledger.model_copy(
+        update={"facts": [intervention_fact]}
+    )
+    kept_int = filter_blocks_by_trigger(blocks_all, ledger_with_intervention)
+    ok &= check(
+        "intervention present with facts",
+        any(b.trigger == "intervention_tier" for b in kept_int),
+        f"kept={[b.label for b in kept_int]}",
+    )
+
+    iep_fact = _fact(
+        fact_id="f_iep",
+        predicate="iep_status",
+        value="in place",
+        temporality="as_of",
+    )
+    ledger_c8 = empty_ledger.model_copy(
+        update={"facts": [intervention_fact, iep_fact, enroll_b]}
+    )
+    out = DraftProseOutput(blocks=blocks_all, prose="", statements=[])
+    final = finalize_draft_output(out, ledger_c8)
+    prose_blocks = [b for b in final.blocks if b.kind == DraftBlockKind.PROSE]
+    ok &= check(
+        "C8 three prose blocks",
+        len(prose_blocks) == 3,
+        f"prose_blocks={[b.label for b in prose_blocks]}",
+    )
+    labels_in_order = [b.label for b in final.blocks]
+    ok &= check(
+        "prose contains labels in order",
+        all(label in final.prose for label in labels_in_order)
+        and final.prose.index(labels_in_order[0])
+        < final.prose.index(labels_in_order[1])
+        < final.prose.index(labels_in_order[2]),
+        f"labels={labels_in_order} prose={final.prose!r}",
+    )
+
+    table_block = DraftBlock(
+        kind=DraftBlockKind.TABLE,
+        label="School History",
+        trigger=None,
+        table=table,
+    )
+    table_prose = render_prose_from_blocks([table_block])
+    ok &= check(
+        "blank cell not padded as N/A",
+        "N/A" not in table_prose and "||" not in table_prose.replace("| ---", ""),
+        f"table_prose={table_prose!r}",
+    )
+    # Empty MATH cell renders as an empty markdown cell, not filler.
+    ok &= check(
+        "blank cell renders empty",
+        "|  |" in table_prose or table_prose.rstrip().endswith("|"),
+        f"table_prose={table_prose!r}",
+    )
+
+    return ok
+
+
 def test_age_validator_unit() -> bool:
     """Assert the age validator fires on a planted wrong age (no network)."""
 
@@ -4600,6 +5023,9 @@ def main() -> int:
     results.append(("fixtures.case_manifest", test_case_manifest_unit()))
     results.append(("schema.ledger", test_ledger_schema_unit()))
     results.append(("schema.predicates", test_predicate_vocabulary_unit()))
+    results.append(
+        ("schema.educational_history", test_educational_history_ledger_additions_unit())
+    )
     results.append(("grouping.key", test_grouping_unit()))
     results.append(("conflicts.unit", test_conflicts_unit()))
     results.append(("subjects.canonical", test_canonical_subjects_unit()))
