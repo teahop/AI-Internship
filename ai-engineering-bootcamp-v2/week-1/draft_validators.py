@@ -8,6 +8,8 @@ import re
 from provider import ENTAILMENT_TEMPERATURE, ModelProvider
 from schemas import (
     Disagreement,
+    DraftBlock,
+    DraftBlockKind,
     DraftProseOutput,
     EntailmentJudgment,
     FailedCitationAttempt,
@@ -36,6 +38,88 @@ _HISTORICAL_FRAME = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+
+
+def filter_blocks_by_trigger(
+    blocks: list[DraftBlock],
+    ledger: Ledger,
+) -> list[DraftBlock]:
+    """
+    Drop blocks whose trigger predicate has no facts in the ledger.
+
+    trigger=None always stays (always-present blocks such as school experience).
+    That is layout-doc §7 degrade — paragraph count falls out of the evidence.
+    """
+
+    present = {f.predicate for f in ledger.facts}
+    return [b for b in blocks if b.trigger is None or b.trigger in present]
+
+
+def render_prose_from_blocks(blocks: list[DraftBlock]) -> str:
+    """Deterministic consumer-facing prose from typed blocks — label order preserved."""
+
+    parts: list[str] = []
+    for block in blocks:
+        if block.kind == DraftBlockKind.PROSE:
+            body = (block.prose or "").strip()
+            if body:
+                parts.append(f"**{block.label}:** {body}")
+            else:
+                parts.append(f"**{block.label}:**")
+        elif block.kind == DraftBlockKind.TABLE:
+            parts.append(_render_table_block(block))
+    return "\n\n".join(parts)
+
+
+def _render_table_block(block: DraftBlock) -> str:
+    table = block.table
+    assert table is not None
+    lines = [f"**{block.label}:**", "", f"*{table.title}*", ""]
+    lines.append("| " + " | ".join(table.columns) + " |")
+    lines.append("| " + " | ".join("---" for _ in table.columns) + " |")
+    for row in table.rows:
+        lines.append("| " + " | ".join(cell.text for cell in row) + " |")
+    return "\n".join(lines)
+
+
+def validate_draft_blocks(output: DraftProseOutput, ledger: Ledger) -> list[str]:
+    """
+    Structural checks on typed blocks before trigger filtering / prose render.
+
+    Empty `blocks` is valid (legacy prose-authored path). Schema validators already
+    enforce cell blank rules and row width; this catches cross-block invariants.
+    """
+
+    del ledger  # reserved for future ledger-aware block checks
+    errors: list[str] = []
+    for block in output.blocks:
+        if block.kind == DraftBlockKind.TABLE and block.table is not None:
+            width = len(block.table.columns)
+            for i, row in enumerate(block.table.rows):
+                if len(row) != width:
+                    errors.append(
+                        f"block {block.label!r} row {i} has {len(row)} cells; "
+                        f"expected {width}"
+                    )
+                for j, cell in enumerate(row):
+                    if cell.text.strip().upper() in {"N/A", "NA", "N.A."}:
+                        errors.append(
+                            f"block {block.label!r} cell [{i},{j}] uses filler "
+                            f"{cell.text!r} — blank cells must be empty text"
+                        )
+                    if cell.text == "" and cell.fact_ids:
+                        errors.append(
+                            f"block {block.label!r} cell [{i},{j}] is blank but "
+                            f"carries fact_ids"
+                        )
+                    if cell.text != "" and not cell.fact_ids:
+                        errors.append(
+                            f"block {block.label!r} cell [{i},{j}] has text but "
+                            f"no fact_ids"
+                        )
+        if block.kind == DraftBlockKind.PROSE and block.prose is None:
+            errors.append(f"prose block {block.label!r} missing prose body")
+    return errors
 
 
 def days_between(earlier: str, later: str) -> int:

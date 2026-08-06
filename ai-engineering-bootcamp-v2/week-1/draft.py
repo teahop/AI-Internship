@@ -10,7 +10,10 @@ from draft_validators import (
     build_citation_review_items,
     build_conflict_review_items,
     build_variance_review_items,
+    filter_blocks_by_trigger,
+    render_prose_from_blocks,
     validate_conflicts_mentioned,
+    validate_draft_blocks,
     validate_entailment,
     validate_fact_id_trace,
     validate_temporal_framing,
@@ -175,6 +178,31 @@ def _disagreement_to_report_conflict(d: Disagreement, ledger: Ledger) -> Conflic
     return Conflict(topic=d.topic, versions=versions)
 
 
+def finalize_draft_output(output: DraftProseOutput, ledger: Ledger) -> DraftProseOutput:
+    """
+    Blocks are primary; prose and top-level statements are derived from them.
+
+    When `blocks` is empty, preserve the legacy prose-authored path (tests and
+    older callers). When blocks are present: drop untriggered blocks (§7),
+    render prose deterministically, and flatten per-block statements.
+    """
+
+    if not output.blocks:
+        return output
+
+    blocks = filter_blocks_by_trigger(output.blocks, ledger)
+    prose = render_prose_from_blocks(blocks)
+    flattened = [stmt for block in blocks for stmt in block.statements]
+    statements = flattened if flattened else list(output.statements)
+    return output.model_copy(
+        update={
+            "blocks": blocks,
+            "prose": prose,
+            "statements": statements,
+        }
+    )
+
+
 def render_annotated_review(output: DraftProseOutput) -> tuple[str, list[str]]:
     """
     Build the annotated review copy from a DraftProseOutput.
@@ -313,6 +341,12 @@ def draft_section(
     output = result.data
     assert isinstance(output, DraftProseOutput)
     tokens_by_stage["draft"] = result.total_tokens
+
+    block_errors = validate_draft_blocks(output, body.ledger)
+    if block_errors:
+        raise ValueError("Draft block validation failed: " + "; ".join(block_errors[:5]))
+
+    output = finalize_draft_output(output, body.ledger)
 
     # Fact_id trace: unknown ids → secondary gap signal (not a hard fail by themselves).
     # Empty statements with non-empty prose remains a hard failure.

@@ -6,6 +6,7 @@ the /draft (and current /ask) narrative output — do not delete it.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -633,20 +634,137 @@ class DraftStatement(BaseModel):
     )
 
 
-class DraftProseOutput(BaseModel):
-    """Model output for /draft — prose only; facts/conflicts are settled input.
+class DraftBlockKind(StrEnum):
+    """Typed draft unit — prose paragraph or chart table."""
 
-    Labeled history blocks are bold run-ins inside `prose` (Molly paste-ready).
-    No first-class `blocks` field — structure is prompt-enforced until section
-    assembly needs a typed shape.
+    PROSE = "prose"
+    TABLE = "table"
+
+
+class DraftCell(BaseModel):
+    """One table cell. Blank cells are empty text — never N/A or filler."""
+
+    text: str = Field(
+        description='Cell text. Use "" for a blank cell — never "N/A", never filler.',
+    )
+    fact_ids: list[str] = Field(
+        default_factory=list,
+        description="Ledger fact ids supporting this cell; empty only when text is empty",
+    )
+
+    @model_validator(mode="after")
+    def _blank_and_trace_rules(self) -> Self:
+        stripped = self.text.strip()
+        if stripped.upper() in {"N/A", "NA", "N.A."}:
+            raise ValueError(
+                f"blank cells must use empty text, not filler {self.text!r}"
+            )
+        if self.text == "":
+            if self.fact_ids:
+                raise ValueError("blank cell (text='') must not carry fact_ids")
+        elif not self.fact_ids:
+            raise ValueError("non-empty cell requires at least one fact_id")
+        return self
+
+
+class DraftTable(BaseModel):
+    """Chart content for a TABLE draft block (School History / SST History)."""
+
+    title: str = Field(description='Table title, e.g. "School History" / "SST History"')
+    columns: list[str] = Field(min_length=1)
+    rows: list[list[DraftCell]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _row_width_matches_columns(self) -> Self:
+        width = len(self.columns)
+        for i, row in enumerate(self.rows):
+            if len(row) != width:
+                raise ValueError(
+                    f"row {i} has {len(row)} cells; table has {width} columns"
+                )
+        return self
+
+
+class DraftBlock(BaseModel):
+    """One labeled unit of the draft — prose paragraph or chart.
+
+    trigger encodes evidence-conditional emission (Educational History C8):
+    None = always present when emitted; a predicate name (e.g. intervention_tier,
+    iep_status) = emit only when the ledger holds facts for that predicate.
+    Server drops blocks whose trigger has no supporting facts (§7 degrade).
     """
 
-    prose: str
+    kind: DraftBlockKind
+    label: str = Field(description="Bold run-in label for this block")
+    trigger: str | None = Field(
+        default=None,
+        description=(
+            "Predicate that licensed this block, or null when always present. "
+            "Educational History: null = school experience; intervention_tier; iep_status."
+        ),
+    )
+    prose: str | None = Field(
+        default=None,
+        description="Paragraph body when kind is prose",
+    )
+    table: DraftTable | None = Field(
+        default=None,
+        description="Chart content when kind is table",
+    )
     statements: list[DraftStatement] = Field(
+        default_factory=list,
+        description="Traceability entries for this block's prose (kind=prose)",
+    )
+
+    @model_validator(mode="after")
+    def _kind_payload(self) -> Self:
+        if self.kind == DraftBlockKind.PROSE:
+            if self.prose is None:
+                raise ValueError("prose block requires prose")
+            if self.table is not None:
+                raise ValueError("prose block must not carry table")
+        elif self.kind == DraftBlockKind.TABLE:
+            if self.table is None:
+                raise ValueError("table block requires table")
+            if self.prose is not None:
+                raise ValueError("table block must not carry prose")
+        return self
+
+
+class DraftProseOutput(BaseModel):
+    """Model output for /draft — facts/conflicts are settled input.
+
+    `blocks` is the authored representation. `prose` is rendered deterministically
+    from `blocks` (server-side) so one representation cannot drift from itself;
+    it stays on the output for existing consumers. Do not treat model-authored
+    prose as authoritative when blocks are present.
+
+    (The 2026-07-28 deferral that kept labels as bold run-ins inside prose only —
+    citing a Molly paste-target that does not exist — is retired. The tool drafts
+    for her; she does not paste prose in.)
+    """
+
+    blocks: list[DraftBlock] = Field(
+        default_factory=list,
+        description=(
+            "Typed labeled blocks (prose and/or tables). Primary draft shape; "
+            "prose is rendered from this list."
+        ),
+    )
+    prose: str = Field(
+        default="",
+        description=(
+            "Consumer-facing narrative rendered from blocks. May be empty in model "
+            "output — server fills it from blocks when blocks are present."
+        ),
+    )
+    statements: list[DraftStatement] = Field(
+        default_factory=list,
         description=(
             "Every substantive claim covered by some entry with real ledger "
-            "fact_ids. An entry may cover a clause, a sentence, or several "
-            "consecutive sentences and may carry several fact_ids — "
+            "fact_ids. Prefer per-block statements; server flattens from blocks "
+            "when those are populated. An entry may cover a clause, a sentence, "
+            "or several consecutive sentences and may carry several fact_ids — "
             "one-claim-per-sentence composition is not required."
         ),
     )
